@@ -110,6 +110,15 @@ The three parameters are public fields of `SileroVad`, so the integrating applic
 
 Method: change one number at a time and watch two figures in MimickingLab: the gate flip count (during continuous speech it should be close to the number of sentence pauses) and the open-block counts of `--gate-probe` on the four recordings in `C:/MimickingData/noise/` (keyboard and desk tapping should be 0).
 
+MimickingLab has sliders for the three numbers (the "求解与门控" (Solver and gating) group, shown when Silero is selected; dragging takes effect immediately); headless, use `--vad-threshold 0.5 --vad-hold 2 --vad-floor -60` (honoured by live mode and by `--gate-probe`).
+
+**Calibrating for a new environment** (another room, another microphone, or a changed gain):
+
+1. With the real microphone and gain, record two 16 kHz mono wavs: 30 s of nothing but that environment's background (keyboard, air conditioning, other people talking as usual), and 30 s of yourself speaking normally, with a few pauses.
+2. Run `mimic-lab --headless --gate-probe bg.wav` and `--gate-probe speech.wav` and read Silero's open-block counts: the background should give 0 (other people's speech passes by design; note how many blocks it takes), the speech should be close to the number of voiced blocks, with each onset at most 1 block late.
+3. If either fails, change one number per the table above (background leaking through → threshold 0.5 → 0.6; word starts clipped → threshold 0.4 or hold 3; a very quiet room can go down to 0.4), rerun both files with `--vad-threshold / --vad-hold / --vad-floor` until both pass; then listen for a minute in live mode and watch the gate flip count.
+4. Put the three numbers into the integrating application's own configuration and assign them to the `SileroVad` fields at start-up; the Lab's sliders only affect the current process.
+
 ## 7. Multiple streams and capacity
 
 The per-stream cost does not change with the number of streams (the DiT is the compute bottleneck at this sequence length); the streams on one card run sequentially and each stream's latency equals the whole round: **at most 4 streams per A4000** (240 ms blocks, about 115 ms per round), 8 streams on two cards. Details in `docs/capacity-a4000.md`. Load every stream before starting; a stream added while running must create its session in the gap between blocks (no CUDA Graph re-capture, a few milliseconds).
