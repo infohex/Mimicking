@@ -98,6 +98,18 @@ loop {
 - While the gate is closed the model keeps computing (the window has to roll); only the output fades to zero, so the moment the gate opens the model has the right context.
 - Do not attach a gate to offline file conversion: a trimmed file starts with speech, the energy gate's floor gets pinned to the speech level, and the first seconds come out silent.
 
+### Tuning the gate
+
+The three parameters are public fields of `SileroVad`, so the integrating application can change them without touching the library: `let mut gate = SileroVad::load(&rt, path)?; gate.threshold = 0.6;` before passing it to `Session::with_vad`. The decision: a block below `abs_floor_db` is silence outright; otherwise the maximum speech probability over the block's 32 ms chunks is taken, a closed gate opens when it exceeds `threshold`, and an open gate closes only after `hold_blocks` consecutive blocks below 0.7 × `threshold`.
+
+| Parameter (default) | Lower | Higher |
+|---|---|---|
+| `threshold` (0.5) | Sounds less like speech open the gate: coughs, distant voices and resonant taps pass more easily and the babble returns; soft onsets are caught earlier | Fewer false openings, but quiet speech and the first phoneme of many words fall short, so word starts are clipped; the closing line rises with it, weak stretches mid-sentence count as quiet and the gate flips more often |
+| `hold_blocks` (2) | At 1 the gate closes in the pauses between words, flips explode, every flip is a 40 ms ramp, and it sounds like chopped words and eaten endings | At 4–5 it rides over pauses of about 1 s, but stays open about 1 s after a sentence ends, so keyboard noise in that stretch goes straight into the model and the babble appears right after sentences; fewer flips also hide real chopping |
+| `abs_floor_db` (−60) | At −80 the pre-check is effectively off, everything goes to Silero, the result is almost unchanged, about 1 ms more CPU | At −45 it turns back into an energy gate: speech far from the microphone or at low gain is muted block by block |
+
+Method: change one number at a time and watch two figures in MimickingLab: the gate flip count (during continuous speech it should be close to the number of sentence pauses) and the open-block counts of `--gate-probe` on the four recordings in `C:/MimickingData/noise/` (keyboard and desk tapping should be 0).
+
 ## 7. Multiple streams and capacity
 
 The per-stream cost does not change with the number of streams (the DiT is the compute bottleneck at this sequence length); the streams on one card run sequentially and each stream's latency equals the whole round: **at most 4 streams per A4000** (240 ms blocks, about 115 ms per round), 8 streams on two cards. Details in `docs/capacity-a4000.md`. Load every stream before starting; a stream added while running must create its session in the gap between blocks (no CUDA Graph re-capture, a few milliseconds).

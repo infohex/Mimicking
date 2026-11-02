@@ -31,11 +31,15 @@ pub struct SileroVad {
     context: [f32; CTX],
     /// 16 kHz samples that did not fill a whole chunk yet (a 240 ms block is 7.5 chunks)
     pending: Vec<f32>,
-    /// chunk probability above which a block opens
+    /// Chunk speech probability above which a closed gate opens (default 0.5; the gate closes below 0.7 × this).
+    /// Lower: coughs, distant voices and resonant taps pass more easily. Higher: quiet speech and word onsets are
+    /// clipped and the gate flips more often. Public so the integrating application can tune it before `with_vad`.
     pub threshold: f32,
-    /// consecutive quiet blocks before the gate closes
+    /// Consecutive quiet blocks before an open gate closes (default 2). 1 closes in the pauses between words (audible
+    /// chopping); 4–5 rides over ~1 s pauses but keeps the gate open ~1 s after a sentence, letting noise through there.
     pub hold_blocks: usize,
-    /// below this block level (dBFS) the block is silence without asking the model
+    /// Block level (dBFS) below which the block is silence without asking the model (default −60). Raising it towards
+    /// −45 turns this back into an energy gate that mutes quiet speech; lowering it only costs ~1 ms of CPU per block.
     pub abs_floor_db: f32,
     open: bool,
     quiet: usize,
