@@ -110,14 +110,14 @@ loop {
 
 调法：一次只动一个数，在 MimickingLab 里看两个量——门翻转次数（连续说话时应接近句子停顿数）和 `--gate-probe` 对 `C:/MimickingData/noise/` 四段录音的开门块数（键盘、敲桌应为 0）。
 
-MimickingLab 里这三个数有滑杆（"求解与门控"组，选 Silero 时出现，拖动即生效），无界面用 `--vad-threshold 0.5 --vad-hold 2 --vad-floor -60`（实时模式与 `--gate-probe` 都认）。
+MimickingLab 里这三个数是可拖动的数值框（“求解与门控”组，选 Silero 时出现，改动即生效），无界面用 `--vad-threshold 0.5 --vad-hold 2 --vad-floor -60`（实时模式与 `--gate-probe` 都认）。
 
 **新环境校准**（换房间、换麦克风或改了增益时）：
 
 1. 用实际的麦克风和增益录两段 16 kHz 单声道 wav：30 s 只有该环境的背景音（键盘、空调、旁人说话都照常），30 s 自己正常说话（含几次停顿）。
 2. `mimic-lab --headless --gate-probe bg.wav` 与 `--gate-probe speech.wav`，看 Silero 的开门块数：背景段应为 0（旁人说话按设计会放行，记下它占多少块），说话段应接近有声块数，每次起音最多晚 1 块。
 3. 不合格就按上表改一个数（背景漏开 → 阈值 0.5 → 0.6；说话掉词头 → 阈值 0.4 或 hold 3；很安静的环境可以放到 0.4），加 `--vad-threshold / --vad-hold / --vad-floor` 重跑两段，直到两段都合格；再进实时模式听 1 分钟，看门翻转次数。
-4. 把定下的三个数写进使用方自己的配置，启动时赋给 `SileroVad` 的字段；Lab 的滑杆只影响当前进程。
+4. 把定下的三个数写进使用方自己的配置，启动时赋给 `SileroVad` 的字段；Lab 的数值框只影响当前进程。
 
 ## 7. 多路与容量
 
