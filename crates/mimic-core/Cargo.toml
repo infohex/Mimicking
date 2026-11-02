@@ -1,0 +1,10 @@
+[package]
+name = "mimic-core"
+description = "Traits and data types shared by every Mimicking module: stage boundaries of a voice-conversion pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ndarray.workspace = true
+thiserror.workspace = true

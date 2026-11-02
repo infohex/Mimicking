@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/mimic-core",
+    "crates/mimic-dsp",
+    "crates/mimic-onnx",
+    "crates/mimic-model",
+    "crates/mimic-pipeline",
+    "crates/mimic-cli",
+    "examples/convert-minimal",
+]
+
+[workspace.package]
+version = "2.0.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/infohex/Mimicking"
+
+[workspace.dependencies]
+mimic-core = { path = "crates/mimic-core" }
+mimic-dsp = { path = "crates/mimic-dsp" }
+mimic-onnx = { path = "crates/mimic-onnx" }
+mimic-model = { path = "crates/mimic-model" }
+mimic-pipeline = { path = "crates/mimic-pipeline" }
+
+ndarray = "0.17"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+hound = "3.5"
+realfft = "3.5"
+rand = "0.9"
+sha2 = "0.10"
+# ONNX Runtime bindings: dylib loaded at runtime (ORT_DYLIB_PATH or init_from), API pinned to ORT 1.22
+ort = { version = "2.0.0-rc.15", default-features = false, features = ["std", "ndarray", "load-dynamic", "api-22", "cuda"] }
+# fixtures (.npz written by tools/export) for parity tests
+ndarray-npy = { version = "0.10", features = ["npz"] }
+
+[profile.release]
+opt-level = 3
+debug = 1

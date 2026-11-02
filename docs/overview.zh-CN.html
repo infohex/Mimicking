@@ -1,0 +1,358 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mimicking 项目导览</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;800&display=swap">
+<style>
+/* layout: narrative page, one column of max 880px; each section has a plain-language lead, an illustration and one control */
+:root {
+  --bg: #f7f5f0;
+  --paper: #ffffff;
+  --ink: #1f2a30;
+  --muted: #5f6b72;
+  --line: #e1dcd2;
+  --accent: #1f6f8b;
+  --accent-soft: #dbeaf0;
+  --gold: #b7791f;
+  --ok: #2f8f5b;
+  --warn: #c0592b;
+  --font-body: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-head: "Noto Serif SC", "Songti SC", "SimSun", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15191c; --paper: #1e2428; --ink: #e9e6df; --muted: #a2a9ad; --line: #2f373c;
+    --accent: #6fb6cf; --accent-soft: #1d3540; --gold: #d8a24a; --ok: #5fc08a; --warn: #e07a4f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15191c; --paper: #1e2428; --ink: #e9e6df; --muted: #a2a9ad; --line: #2f373c;
+  --accent: #6fb6cf; --accent-soft: #1d3540; --gold: #d8a24a; --ok: #5fc08a; --warn: #e07a4f; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.75;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 60px; }
+main { max-width: 880px; margin: 0 auto; }
+h1 { font-family: var(--font-head); font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.25; margin: 0 0 10px; text-wrap: balance; }
+h2 { font-family: var(--font-head); font-size: 1.45rem; margin: 56px 0 10px; text-wrap: balance; }
+h3 { font-size: 1.05rem; margin: 18px 0 6px; }
+p { margin: 10px 0; max-width: 68ch; }
+.lead { font-size: 1.1rem; color: var(--muted); max-width: 60ch; }
+.eyebrow { font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 18px 0; }
+.kpi { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.kpi .n { font-family: var(--font-head); font-size: 1.9rem; font-weight: 800; color: var(--accent); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+.kpi .s { font-size: 0.82rem; color: var(--muted); }
+/* stepper */
+.steps { display: grid; grid-template-columns: 220px 1fr; gap: 16px; margin-top: 14px; }
+@media (max-width: 700px) { .steps { grid-template-columns: 1fr; } }
+.steplist { display: flex; flex-direction: column; gap: 6px; }
+.steplist button { text-align: left; font: inherit; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: center; }
+.steplist button .num { width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; font-size: 0.85rem; }
+.steplist button[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.steplist button:focus-visible, .toggle button:focus-visible, details summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.stage { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; }
+.stage svg { width: 100%; height: auto; display: block; margin: 6px 0 12px; }
+.stage .analogy { background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; font-size: 0.95rem; }
+.stage .analogy b { color: var(--accent); }
+/* before/after */
+.bars { display: grid; gap: 10px; margin: 14px 0; }
+.bar { display: grid; grid-template-columns: 9.5em 1fr 5.5em; gap: 10px; align-items: center; font-size: 0.95rem; }
+.bar .track { height: 20px; background: var(--line); border-radius: 6px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); border-radius: 6px; transition: width .6s ease; }
+.bar.old .fill { background: var(--muted); }
+.bar .v { font-variant-numeric: tabular-nums; text-align: right; font-weight: 500; }
+.toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin: 8px 0; }
+.toggle button { font: inherit; border: 0; background: var(--paper); color: var(--ink); padding: 6px 16px; cursor: pointer; }
+.toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+/* calculator */
+.calc { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) { .calc { grid-template-columns: 1fr; } }
+.calc label { display: block; font-size: 0.9rem; color: var(--muted); margin-top: 10px; }
+.calc input[type=range] { width: 100%; }
+.calc .out { font-family: var(--font-head); font-size: 2.4rem; font-weight: 800; color: var(--accent); line-height: 1.1; }
+.calc .out small { font-family: var(--font-body); font-size: 0.95rem; color: var(--muted); font-weight: 400; }
+.note { font-size: 0.88rem; color: var(--muted); }
+/* timeline */
+.lat { position: relative; height: 54px; margin: 14px 0 6px; }
+.lat .seg { position: absolute; top: 14px; height: 26px; border-radius: 6px; font-size: 0.78rem; display: grid; place-items: center; color: #fff; white-space: nowrap; overflow: hidden; }
+.lat .tick { position: absolute; top: 44px; font-size: 0.75rem; color: var(--muted); transform: translateX(-50%); }
+details { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); padding: 0 16px; margin: 8px 0; }
+details summary { cursor: pointer; padding: 12px 0; font-weight: 500; list-style: none; display: flex; justify-content: space-between; }
+details summary::after { content: "+"; color: var(--accent); font-weight: 700; }
+details[open] summary::after { content: "−"; }
+details p { margin: 0 0 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+td, th { text-align: left; padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
+.ok { color: var(--ok); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; }
+.flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; align-items: center; margin: 14px 0; }
+@media (max-width: 700px) { .flow { grid-template-columns: 1fr; } .flow .arrow { transform: rotate(90deg); } }
+.flow .box { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px; text-align: center; font-size: 0.9rem; }
+.flow .box b { display: block; color: var(--accent); }
+.flow .arrow { text-align: center; color: var(--muted); }
+footer { margin-top: 50px; color: var(--muted); font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { .bar .fill { transition: none; } }
+</style>
+
+<main>
+<p class="eyebrow">项目导览 · 面向决策者</p>
+<div class="lang-switch" style="font:13px/1.4 system-ui,sans-serif;opacity:.75;margin:0 0 10px"><a href="overview.html">English</a> | 中文</div>
+<h1>Mimicking：让一个人的话，用另一个人的嗓音实时说出来</h1>
+<p class="lead">说话的内容、语气、节奏都是原来的人；听众听到的嗓音，是你指定的那个人。只需要那个人几秒钟的录音，不需要训练。它跑在一台带显卡的普通服务器上，是我们用 Rust 语言重新实现并大幅提速的自有版本。</p>
+
+<div class="kpis">
+  <div class="kpi"><div class="n">48 <small style="font-size:1rem">毫秒</small></div><div class="l">处理每 0.25 秒语音所需时间</div><div class="s">原开源版本：约 200 毫秒；低延迟档 28 毫秒</div></div>
+  <div class="kpi"><div class="n">4 <small style="font-size:1rem">路</small></div><div class="l">一张显卡可同时服务的通话数</div><div class="s">原版 1 到 2 路。显卡为 RTX A4000（16 GB），与 RTX 3070 同级</div></div>
+  <div class="kpi"><div class="n">3 <small style="font-size:1rem">秒</small></div><div class="l">换嗓音只需的参考录音长度</div><div class="s">任何人、任何语言的一小段清晰人声</div></div>
+  <div class="kpi"><div class="n">1 <small style="font-size:1rem">个文件夹</small></div><div class="l">完整部署形态</div><div class="s">程序 + 运行库 + 模型，不装 Python</div></div>
+</div>
+
+<h2>它解决什么问题</h2>
+<p>市面上效果好的"零样本变声"模型几乎都是研究代码：用 Python 写成，一张显卡只能带一两路，还要为服务器装一整套开发环境。我们做的事情是把其中效果最好的一个（公开的 Seed-VC 模型）<b>按同样的数学原理重新实现</b>，让它快四倍、能同时服务更多人，并且变成一个能直接拷到服务器上运行的独立程序。模型的"知识"（权重）沿用公开发布的版本，我们没有重新训练，所以听感和原版一致。</p>
+
+<h2>它是怎么工作的</h2>
+<p>整个过程每 0.25 秒循环一次，四步。点左侧看每一步。</p>
+<div class="steps">
+  <div class="steplist" role="tablist" id="steplist"></div>
+  <div class="stage" id="stage"></div>
+</div>
+
+<h2>为什么能快四倍</h2>
+<p>原版慢，不是因为显卡算不过来，而是因为显卡大部分时间在<b>等指令</b>。Python 每次要给显卡下发两千多条零碎指令，显卡执行每条只要几微秒，但等下一条指令的时间比执行还长。我们做了三件事：</p>
+<div class="card">
+  <h3>1. 把指令录成"宏"</h3>
+  <p>一次处理要下发的全部指令只录制一次，之后每 0.25 秒直接整段回放，显卡不再等人。</p>
+  <h3>2. 把零碎指令合并</h3>
+  <p>按同一套数学重写了核心网络的计算顺序，两千多条指令合并成不到两百条。效果不变，时间减半。</p>
+  <h3>3. 外围全部用 Rust</h3>
+  <p>音频切块、拼接、重采样、静音判断这些"手工活"不再经过 Python，稳定、可预测，也便于打包成一个独立程序。</p>
+  <div class="toggle" role="group" aria-label="对比口径">
+    <button type="button" aria-pressed="true" data-mode="time">每块处理时间</button>
+    <button type="button" aria-pressed="false" data-mode="calls">一张显卡的并发路数</button>
+  </div>
+  <div class="bars" id="bars"></div>
+  <p class="note">数字来自同一台机器（NVIDIA RTX A4000 显卡，16 GB，算力与 RTX 3070 同级）上对同一段语音的实测，原版为公开代码的实时模式。</p>
+</div>
+
+<h2>能支撑多大的规模</h2>
+<div class="card calc">
+  <div>
+    <label for="gpus">显卡数量：<b id="gpus-v">2</b> 张</label>
+    <input type="range" id="gpus" min="1" max="16" value="2">
+    <label for="quality">质量档位：<b id="quality-v">标准（10 步）</b></label>
+    <input type="range" id="quality" min="0" max="1" value="0" step="1">
+    <label for="build">延迟档位：<b id="build-v">质量优先（2.5 秒）</b></label>
+    <input type="range" id="build" min="0" max="1" value="0" step="1">
+    <p class="note">"步数"是嗓音显影的精细程度。标准档 10 步效果最好；6 步听感略粗一点，但同样算力能多带一路。</p>
+  </div>
+  <div>
+    <div class="out"><span id="calls">8</span> <small>路同时通话</small></div>
+    <p class="note" id="calc-note"></p>
+  </div>
+</div>
+
+<h2>延迟：一个必须事先选定的档位</h2>
+<p>听众听到转换后的声音，比说话人开口晚多久，取决于一个设置：系统在开口"重说"之前，<b>先多听后面多长一段</b>。多听，衔接更自然；少听，回应更快。原版也提供同样的选择。我们导出了两套模型，部署时选一套：</p>
+<div class="card">
+  <p><b>低延迟档</b>（先多听 0.02 秒）：整体约 <b>0.6 秒</b>。</p>
+  <div class="lat" id="lat-fast"></div>
+  <p style="margin-top:14px"><b>质量优先档</b>（先多听 2 秒）：整体约 <b>2.5 秒</b>。</p>
+  <div class="lat" id="lat-slow"></div>
+  <p class="note">两条时间轴都不含耳机或声卡自身的延迟（有线约 0.03 秒，蓝牙耳机常见 0.15 到 0.25 秒）。低延迟档接近视频会议的水平，可用于双向对话；质量优先档适合单向场景（播报、配音、直播、把一方的声音转换后送给另一方）。两档之间也可以取中间值，换档只需重新导出一套模型，几分钟完成，不必重新训练。</p>
+</div>
+
+<h2>部署成什么样</h2>
+<div class="flow">
+  <div class="box"><b>音频进</b>每 0.25 秒一小段，16 kHz</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>Mimicking</b>一个文件夹：程序、运行库、模型</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>音频出</b>转换后的语音，22 kHz</div>
+</div>
+<p>接入方式是最简单的"喂进去一块、拿出来一块"，任何能按时间切块送音频的系统都能接：电话网关、会议服务、直播推流。运行要求是 Windows 服务器加一张 NVIDIA 显卡（我们在 RTX A4000 上测得上述数字，它与 RTX 3070 同级，多张卡可并行、路数按卡相加，更高端的卡路数更多）。文件夹约 3 GB，其中大部分是显卡运行库和模型。</p>
+
+<h2>我们怎么证明它是对的</h2>
+<div class="card">
+  <table>
+    <tr><th>检查</th><th>方法</th><th>结果</th></tr>
+    <tr><td>每一个计算环节</td><td>把我们的实现和原版逐环节比对数值</td><td class="ok">全部一致（误差在浮点精度范围内）</td></tr>
+    <tr><td>最终听感</td><td>用说话人识别模型给"输出像不像目标"打分，0 到 1</td><td class="ok">0.67，原版 0.65；低延迟档 0.66</td></tr>
+    <tr><td>实时能力</td><td>按真实节拍连续喂 20 多秒语音，看有没有一块超时</td><td class="ok">4 路并发零超时</td></tr>
+    <tr><td>独立运行</td><td>在没有任何开发环境的干净系统里运行打包目录</td><td class="ok">通过</td></tr>
+  </table>
+  <p class="note">另外配有一个带界面的测试台程序，可以接麦克风现场演示、回放文件、模拟多路负载、导出指标报告。</p>
+</div>
+
+<h2>边界与风险，先说在前面</h2>
+<table>
+  <tr><th>事项</th><th>说明</th></tr>
+  <tr><td>硬件</td><td>目前只支持 NVIDIA 显卡。其他显卡需要另做一套运行后端，技术上可行但未做。</td></tr>
+  <tr><td>延迟</td><td>两档可选：低延迟档约 0.6 秒，质量优先档约 2.5 秒，见上文。接入时按场景选定。</td></tr>
+  <tr><td>嗓音来源</td><td>嗓音完全由参考录音决定，录音的音高、年龄感会被带过去；参考录音要清晰、无背景音乐。</td></tr>
+  <tr><td>模型许可</td><td>模型权重来自公开发布，其许可为 GPL-3.0；我们的程序代码是自有实现，不含原版代码。对外商用前需要就模型权重的许可做一次法务确认，或改用自训练权重。</td></tr>
+  <tr><td>语言</td><td>模型只关心"说了什么声音"，不依赖具体语言，中英文都可；对不常见语言未系统评估。</td></tr>
+</table>
+
+<h2>常见问题</h2>
+<details><summary>需要给每个目标嗓音单独训练吗？</summary><p>不需要。给一段 3 秒以上的清晰录音，几百毫秒内就能"记住"这个嗓音，通话中也可以随时切换。</p></details>
+<details><summary>会把说话内容改掉吗？</summary><p>不会。它只换嗓音，字句、语速、停顿、情绪起伏都保留。它不做翻译，也不理解语义。</p></details>
+<details><summary>没人说话的时候呢？</summary><p>有静音检测，安静时输出也安静，不会"无中生有"地发出声音。</p></details>
+<details><summary>一张卡 4 路是怎么算的？</summary><p>一张卡上的几路是依次处理的，每一路都要等整轮做完才出声，所以整轮时间直接计入每路的延迟。质量优先档每路每块约 50 毫秒，4 路一轮 200 毫秒，不超过 240 毫秒的节拍；低延迟档每路约 28 毫秒，4 路一轮 115 毫秒，余量更大、更稳。再加路数一轮就贴近或超过节拍，延迟翻倍且一有抖动就丢块，所以上限定在 4 路。实测卡是 RTX A4000（16 GB，与 RTX 3070 同级）；两张卡各 4 路，每卡一轮约 120 毫秒。路数随显卡性能线性变化，可以用上面的估算器看。</p></details>
+<details><summary>和原版比，效果有没有打折？</summary><p>没有。我们用的是同一套模型知识，只是重写了执行方式。客观打分和原版持平或略高，逐环节数值比对一致。</p></details>
+<details><summary>能不能做到像面对面说话一样没有延迟？</summary><p>完全无感知做不到：系统至少要攒够一小段语音再处理。低延迟档整体约 0.6 秒，和视频会议相当，双向对话可用；质量优先档约 2.5 秒，只适合单向场景。两档之间可以按需要折中。</p></details>
+<details><summary>部署复杂吗？</summary><p>把一个约 3 GB 的文件夹放到带 NVIDIA 显卡的 Windows 服务器上即可运行，附带的检查命令会校验模型文件完整性。</p></details>
+
+<footer>Mimicking 0.1.0 · 所有数字为 2026 年 10 月在 NVIDIA RTX A4000（与 RTX 3070 同级）上的实测。</footer>
+</main>
+
+<script>
+// ---------------------------------------------------------------- how it works: four steps with illustrations
+const C = { ink: "var(--ink)", muted: "var(--muted)", accent: "var(--accent)", soft: "var(--accent-soft)", gold: "var(--gold)", paper: "var(--paper)", line: "var(--line)" };
+function wave(x, y, w, h, freq, amp, color, dash) {
+  let d = `M${x},${y}`;
+  for (let i = 0; i <= 120; i++) {
+    const t = i / 120;
+    const yy = y + Math.sin(t * freq * Math.PI * 2) * amp * h * (0.6 + 0.4 * Math.sin(t * 7));
+    d += ` L${x + t * w},${yy}`;
+  }
+  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" ${dash ? 'stroke-dasharray="4 3"' : ""}/>`;
+}
+const steps = [
+  {
+    t: "先听懂：这句话里说了什么",
+    body: "系统先把进来的声音变成一份只记录“说了什么、怎么说的”的速记，有意丢掉“是谁在说”。这一步用的是一个在几十种语言、几十万小时录音上学过的听觉模型。",
+    analogy: "<b>比喻</b>：一位只记内容不记声音的速记员。无论谁来口述，速记稿都一样。",
+    svg: `<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="声音变成速记">
+      ${wave(20, 85, 220, 60, 9, 0.6, C.ink)}
+      <text x="130" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">说话人的声音</text>
+      <path d="M255,85 L300,85" stroke="${C.muted}" stroke-width="2" marker-end="url(#a)"/>
+      <rect x="310" y="30" width="310" height="110" rx="12" fill="${C.soft}"/>
+      ${[0,1,2,3,4].map(i => `<rect x="${330 + i*56}" y="${50 + (i%2)*6}" width="40" height="${60 - (i%3)*10}" rx="6" fill="${C.accent}" opacity="${0.55 + 0.1*i}"/>`).join("")}
+      <text x="465" y="160" text-anchor="middle" font-size="13" fill="${C.muted}">每 20 毫秒一格的“内容速记”，不含嗓音</text>
+      <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${C.muted}"/></marker></defs>
+    </svg>`
+  },
+  {
+    t: "再记住：目标嗓音长什么样",
+    body: "拿目标说话人 3 秒钟的录音，系统提炼出两样东西：一个代表“嗓音特征”的数字指纹，和这段录音的声谱原样。这一步每个嗓音只做一次，几百毫秒完成，之后反复使用。",
+    analogy: "<b>比喻</b>：给目标嗓音拍一张“声纹照片”并留一小段原声样本，后面每句话都照着这张照片去“配音”。",
+    svg: `<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="参考录音变成声纹">
+      ${wave(20, 85, 200, 60, 7, 0.5, C.gold)}
+      <text x="120" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">目标嗓音 3 秒录音</text>
+      <path d="M235,85 L280,85" stroke="${C.muted}" stroke-width="2" marker-end="url(#a)"/>
+      <circle cx="360" cy="85" r="46" fill="none" stroke="${C.gold}" stroke-width="3"/>
+      ${[0,1,2,3,4,5].map(i => `<circle cx="360" cy="85" r="${8 + i*6}" fill="none" stroke="${C.gold}" stroke-width="1.2" opacity="${0.9 - i*0.12}" stroke-dasharray="${3+i} ${2+i}"/>`).join("")}
+      <text x="360" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">声纹指纹（192 个数字）</text>
+      <rect x="450" y="40" width="170" height="90" rx="10" fill="${C.soft}"/>
+      ${[0,1,2,3,4,5,6,7].map(i => `<rect x="${460 + i*20}" y="${50 + (i*13)%30}" width="14" height="${70 - (i*13)%30}" rx="3" fill="${C.gold}" opacity="0.7"/>`).join("")}
+      <text x="535" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">原声声谱样本</text>
+    </svg>`
+  },
+  {
+    t: "然后重说：把内容用目标嗓音“显影”出来",
+    body: "这是核心。系统从一片随机噪声开始，参照“内容速记”和“声纹照片”，分 10 步逐渐把噪声修正成目标嗓音说这句话时应有的声谱。每一步都让它更清晰一点，就像照片显影。我们把这 10 步做成了显卡上可以整段回放的固定流程，是提速的关键所在。",
+    analogy: "<b>比喻</b>：暗房里显影一张照片。底片（内容）和参照人像（声纹）都有了，显影液过 10 遍，画面就出来了。",
+    svg: `<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="从噪声逐步显影成声谱">
+      ${[0,1,2,3,4].map(i => {
+        const x = 20 + i*124, blur = 1 - i/4;
+        let cells = "";
+        for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) {
+          const sig = Math.sin((c+1)*0.9 + r*0.6) * 0.5 + 0.5;
+          const noise = ((r*7 + c*13 + i*3) % 10) / 10;
+          const v = sig * (1-blur) + noise * blur;
+          cells += `<rect x="${x + c*12}" y="${30 + r*12}" width="11" height="11" fill="${C.accent}" opacity="${0.15 + v*0.8}"/>`;
+        }
+        return cells + `<text x="${x+48}" y="125" text-anchor="middle" font-size="12" fill="${C.muted}">${["噪声","第 2 步","第 5 步","第 8 步","第 10 步"][i]}</text>` + (i < 4 ? `<path d="M${x+100},65 L${x+118},65" stroke="${C.muted}" stroke-width="2" marker-end="url(#a)"/>` : "");
+      }).join("")}
+      <text x="320" y="158" text-anchor="middle" font-size="13" fill="${C.muted}">目标嗓音的声谱逐步清晰；每一步显卡只需约 2 毫秒</text>
+    </svg>`
+  },
+  {
+    t: "最后发声：把声谱变回可以播放的声音",
+    body: "声谱是一张“声音的图”，还不能直接播放。最后一个模块根据这张图合成真正的波形，再和上一块无缝拼接，送去播放。没人说话时，静音检测会让输出保持安静。",
+    analogy: "<b>比喻</b>：乐谱变成演奏。声谱是谱子，这一步是乐手；拼接是让每小节首尾相接听不出断点。",
+    svg: `<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="声谱合成为波形并拼接">
+      <rect x="20" y="40" width="170" height="90" rx="10" fill="${C.soft}"/>
+      ${[0,1,2,3,4,5,6,7].map(i => `<rect x="${30 + i*20}" y="${50 + (i*11)%30}" width="14" height="${70 - (i*11)%30}" rx="3" fill="${C.accent}" opacity="0.75"/>`).join("")}
+      <text x="105" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">目标嗓音声谱</text>
+      <path d="M205,85 L250,85" stroke="${C.muted}" stroke-width="2" marker-end="url(#a)"/>
+      ${wave(260, 85, 170, 60, 9, 0.6, C.accent)}
+      ${wave(410, 85, 170, 60, 9, 0.6, C.accent)}
+      <rect x="400" y="45" width="32" height="80" fill="${C.gold}" opacity="0.25" rx="4"/>
+      <text x="416" y="40" text-anchor="middle" font-size="11" fill="${C.gold}">重叠拼接</text>
+      <text x="420" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">合成的波形，一块接一块无缝播放</text>
+      <text x="600" y="90" font-size="26">🔊</text>
+    </svg>`
+  },
+];
+const steplist = document.getElementById("steplist"), stage = document.getElementById("stage");
+let cur = 0;
+function showStep(i) {
+  cur = i;
+  steplist.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-selected", j === i));
+  const s = steps[i];
+  stage.innerHTML = `<h3>${i + 1}. ${s.t}</h3>${s.svg}<p>${s.body}</p><div class="analogy">${s.analogy}</div>`;
+}
+steps.forEach((s, i) => {
+  const b = document.createElement("button"); b.setAttribute("role", "tab");
+  b.innerHTML = `<span class="num">${i + 1}</span><span>${s.t.split("：")[0]}</span>`;
+  b.addEventListener("click", () => showStep(i));
+  steplist.appendChild(b);
+});
+showStep(0);
+
+// ---------------------------------------------------------------- before/after bars
+const bars = document.getElementById("bars");
+const data = {
+  time: { unit: "毫秒", max: 225, rows: [["原版（Python）", 225, true], ["Mimicking 第一版", 147, false], ["+ 显卡指令回放", 82, false], ["+ 指令合并与重写", 48, false]] },
+  calls: { unit: "路", max: 5, rows: [["原版（Python）", 1.5, true], ["Mimicking 标准档", 4, false], ["Mimicking 6 步档", 5, false]] },
+};
+function drawBars(mode) {
+  const d = data[mode];
+  bars.innerHTML = "";
+  d.rows.forEach(([l, v, old]) => {
+    const row = document.createElement("div"); row.className = "bar" + (old ? " old" : "");
+    row.innerHTML = `<div>${l}</div><div class="track"><div class="fill" style="width:0%"></div></div><div class="v">${mode === "calls" && v === 1.5 ? "1 到 2" : v} ${d.unit}</div>`;
+    bars.appendChild(row);
+    requestAnimationFrame(() => { row.querySelector(".fill").style.width = (v / d.max * 100) + "%"; });
+  });
+  document.querySelectorAll(".toggle button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+}
+document.querySelectorAll(".toggle button").forEach(b => b.addEventListener("click", () => drawBars(b.dataset.mode)));
+drawBars("time");
+
+// ---------------------------------------------------------------- capacity calculator
+const gpus = document.getElementById("gpus"), quality = document.getElementById("quality");
+function calc() {
+  const build = document.getElementById("build");
+  const g = +gpus.value, q = +quality.value, b = +build.value;
+  // measured per-card capacity on one RTX A4000: 4 calls at 10 steps, 5 at 6 steps, for both builds. Calls on
+  // one card run one after another, so every call waits for the whole round: the low-latency build buys
+  // headroom (115 ms round instead of 200 ms), not more calls.
+  const per = q === 0 ? 4 : 5;
+  const ms = b === 0 ? (q === 0 ? "约 50" : "约 38") : (q === 0 ? "约 28" : "约 22（估算）");
+  document.getElementById("gpus-v").textContent = g;
+  document.getElementById("quality-v").textContent = q === 0 ? "标准（10 步）" : "经济（6 步）";
+  document.getElementById("build-v").textContent = b === 0 ? "质量优先（2.5 秒）" : "低延迟（0.6 秒）";
+  document.getElementById("calls").textContent = g * per;
+  document.getElementById("calc-note").textContent = `按每张 RTX A4000（与 RTX 3070 同级）${per} 路估算：实测每路每块 ${ms} 毫秒；同一张卡上各路依次处理，每路都要等整轮做完，所以一轮控制在 240 毫秒节拍的一半左右。两张卡实测 8 路零超时。更高端的显卡按算力比例折算。`;
+}
+gpus.addEventListener("input", calc); quality.addEventListener("input", calc); document.getElementById("build").addEventListener("input", calc); calc();
+
+// ---------------------------------------------------------------- latency timelines (seconds)
+// collect one 0.25 s block, wait for the right context (rounded up to the next block), process, play out
+function timeline(id, segs, ticks) {
+  const el = document.getElementById(id);
+  const total = segs.reduce((a, s) => a + s[1], 0);
+  let x = 0;
+  segs.forEach(([l, s, c]) => {
+    const d = document.createElement("div"); d.className = "seg"; d.style.left = (x / total * 100) + "%"; d.style.width = (s / total * 100) + "%"; d.style.background = c; d.textContent = s / total >= 0.12 ? l : ""; d.title = `${l}：${s} 秒`;
+    el.appendChild(d); x += s;
+  });
+  ticks.forEach(t => { const k = document.createElement("div"); k.className = "tick"; k.style.left = (t / total * 100) + "%"; k.textContent = t + " 秒"; el.appendChild(k); });
+}
+timeline("lat-fast", [["攒够 0.25 秒", 0.25, "var(--accent)"], ["多听 0.02 秒（按块对齐 0.25）", 0.25, "var(--muted)"], ["处理 0.05", 0.05, "var(--gold)"], ["播放缓冲 0.1", 0.1, "var(--accent)"]], [0, 0.25, 0.5, 0.65]);
+timeline("lat-slow", [["攒够 0.25 秒", 0.25, "var(--accent)"], ["多听后面 2 秒的语音", 2.0, "var(--muted)"], ["处理 0.05", 0.05, "var(--gold)"], ["播放缓冲 0.1", 0.1, "var(--accent)"]], [0, 1, 2, 2.4]);
+</script>

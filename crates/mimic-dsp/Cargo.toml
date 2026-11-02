@@ -1,0 +1,15 @@
+[package]
+name = "mimic-dsp"
+description = "Pure-Rust signal processing for Mimicking: resampling, mel spectrogram, Kaldi fbank, HiFT source/STFT/ISTFT, SOLA"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mimic-core.workspace = true
+ndarray.workspace = true
+realfft.workspace = true
+rand.workspace = true
+
+[dev-dependencies]
+ndarray-npy.workspace = true

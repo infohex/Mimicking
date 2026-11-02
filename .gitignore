@@ -1,0 +1,13 @@
+# build and environments
+/target
+/.venv
+__pycache__/
+*.pyc
+
+# not distributed with the library: model graphs, weights and references (see README "模型与运行库")
+/models/
+/ref/
+
+# local outputs and packaged runtimes
+/out/
+/dist/

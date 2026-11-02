@@ -1,0 +1,358 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mimicking Project Overview</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;800&display=swap">
+<style>
+/* layout: narrative page, one column of max 880px; each section has a plain-language lead, an illustration and one control */
+:root {
+  --bg: #f7f5f0;
+  --paper: #ffffff;
+  --ink: #1f2a30;
+  --muted: #5f6b72;
+  --line: #e1dcd2;
+  --accent: #1f6f8b;
+  --accent-soft: #dbeaf0;
+  --gold: #b7791f;
+  --ok: #2f8f5b;
+  --warn: #c0592b;
+  --font-body: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-head: "Noto Serif SC", "Songti SC", "SimSun", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15191c; --paper: #1e2428; --ink: #e9e6df; --muted: #a2a9ad; --line: #2f373c;
+    --accent: #6fb6cf; --accent-soft: #1d3540; --gold: #d8a24a; --ok: #5fc08a; --warn: #e07a4f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15191c; --paper: #1e2428; --ink: #e9e6df; --muted: #a2a9ad; --line: #2f373c;
+  --accent: #6fb6cf; --accent-soft: #1d3540; --gold: #d8a24a; --ok: #5fc08a; --warn: #e07a4f; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.75;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 60px; }
+main { max-width: 880px; margin: 0 auto; }
+h1 { font-family: var(--font-head); font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.25; margin: 0 0 10px; text-wrap: balance; }
+h2 { font-family: var(--font-head); font-size: 1.45rem; margin: 56px 0 10px; text-wrap: balance; }
+h3 { font-size: 1.05rem; margin: 18px 0 6px; }
+p { margin: 10px 0; max-width: 68ch; }
+.lead { font-size: 1.1rem; color: var(--muted); max-width: 60ch; }
+.eyebrow { font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 18px 0; }
+.kpi { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.kpi .n { font-family: var(--font-head); font-size: 1.9rem; font-weight: 800; color: var(--accent); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+.kpi .s { font-size: 0.82rem; color: var(--muted); }
+/* stepper */
+.steps { display: grid; grid-template-columns: 220px 1fr; gap: 16px; margin-top: 14px; }
+@media (max-width: 700px) { .steps { grid-template-columns: 1fr; } }
+.steplist { display: flex; flex-direction: column; gap: 6px; }
+.steplist button { text-align: left; font: inherit; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: center; }
+.steplist button .num { width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; font-size: 0.85rem; }
+.steplist button[aria-selected="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.steplist button:focus-visible, .toggle button:focus-visible, details summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.stage { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; }
+.stage svg { width: 100%; height: auto; display: block; margin: 6px 0 12px; }
+.stage .analogy { background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; font-size: 0.95rem; }
+.stage .analogy b { color: var(--accent); }
+/* before/after */
+.bars { display: grid; gap: 10px; margin: 14px 0; }
+.bar { display: grid; grid-template-columns: 9.5em 1fr 5.5em; gap: 10px; align-items: center; font-size: 0.95rem; }
+.bar .track { height: 20px; background: var(--line); border-radius: 6px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); border-radius: 6px; transition: width .6s ease; }
+.bar.old .fill { background: var(--muted); }
+.bar .v { font-variant-numeric: tabular-nums; text-align: right; font-weight: 500; }
+.toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin: 8px 0; }
+.toggle button { font: inherit; border: 0; background: var(--paper); color: var(--ink); padding: 6px 16px; cursor: pointer; }
+.toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+/* calculator */
+.calc { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) { .calc { grid-template-columns: 1fr; } }
+.calc label { display: block; font-size: 0.9rem; color: var(--muted); margin-top: 10px; }
+.calc input[type=range] { width: 100%; }
+.calc .out { font-family: var(--font-head); font-size: 2.4rem; font-weight: 800; color: var(--accent); line-height: 1.1; }
+.calc .out small { font-family: var(--font-body); font-size: 0.95rem; color: var(--muted); font-weight: 400; }
+.note { font-size: 0.88rem; color: var(--muted); }
+/* timeline */
+.lat { position: relative; height: 54px; margin: 14px 0 6px; }
+.lat .seg { position: absolute; top: 14px; height: 26px; border-radius: 6px; font-size: 0.78rem; display: grid; place-items: center; color: #fff; white-space: nowrap; overflow: hidden; }
+.lat .tick { position: absolute; top: 44px; font-size: 0.75rem; color: var(--muted); transform: translateX(-50%); }
+details { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); padding: 0 16px; margin: 8px 0; }
+details summary { cursor: pointer; padding: 12px 0; font-weight: 500; list-style: none; display: flex; justify-content: space-between; }
+details summary::after { content: "+"; color: var(--accent); font-weight: 700; }
+details[open] summary::after { content: "−"; }
+details p { margin: 0 0 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+td, th { text-align: left; padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
+.ok { color: var(--ok); font-weight: 600; } .warn { color: var(--warn); font-weight: 600; }
+.flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; align-items: center; margin: 14px 0; }
+@media (max-width: 700px) { .flow { grid-template-columns: 1fr; } .flow .arrow { transform: rotate(90deg); } }
+.flow .box { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px; text-align: center; font-size: 0.9rem; }
+.flow .box b { display: block; color: var(--accent); }
+.flow .arrow { text-align: center; color: var(--muted); }
+footer { margin-top: 50px; color: var(--muted); font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { .bar .fill { transition: none; } }
+</style>
+
+<main>
+<p class="eyebrow">Project overview · For decision-makers</p>
+<div class="lang-switch" style="font:13px/1.4 system-ui,sans-serif;opacity:.75;margin:0 0 10px">English | <a href="overview.zh-CN.html">中文</a></div>
+<h1>Mimicking: one person's words, spoken live in another person's voice</h1>
+<p class="lead">The content, tone and rhythm of the speech stay the original speaker's; the voice the audience hears is the one you choose. All it needs is a few seconds of that person's recording, with no training. It runs on an ordinary server with a graphics card, and it is our own version, reimplemented in the Rust language and made substantially faster.</p>
+
+<div class="kpis">
+  <div class="kpi"><div class="n">48 <small style="font-size:1rem">ms</small></div><div class="l">Time needed to process each 0.25 s of speech</div><div class="s">Original open-source version: about 200 ms; low-latency tier 28 ms</div></div>
+  <div class="kpi"><div class="n">4 <small style="font-size:1rem">streams</small></div><div class="l">Calls one graphics card can serve at the same time</div><div class="s">Original: 1 to 2 streams. The card is an RTX A4000 (16 GB), in the same class as an RTX 3070</div></div>
+  <div class="kpi"><div class="n">3 <small style="font-size:1rem">seconds</small></div><div class="l">Length of reference recording needed to switch voice</div><div class="s">A short, clear vocal clip of anyone, in any language</div></div>
+  <div class="kpi"><div class="n">1 <small style="font-size:1rem">folder</small></div><div class="l">Complete deployment footprint</div><div class="s">Program + runtime libraries + models, no Python install</div></div>
+</div>
+
+<h2>What problem it solves</h2>
+<p>Nearly every "zero-shot voice conversion" model on the market that sounds good is research code: written in Python, able to carry only one or two streams per graphics card, and needing a full development environment installed on the server. What we did was take the best-sounding one of them (the public Seed-VC model) and <b>reimplement it on the same mathematical principles</b>, making it four times faster, able to serve more people at the same time, and turning it into a standalone program that can be copied straight onto a server and run. The model's "knowledge" (the weights) is the publicly released version; we did not retrain, so it sounds the same as the original.</p>
+
+<h2>How it works</h2>
+<p>The whole process repeats every 0.25 seconds, in four steps. Click on the left to see each step.</p>
+<div class="steps">
+  <div class="steplist" role="tablist" id="steplist"></div>
+  <div class="stage" id="stage"></div>
+</div>
+
+<h2>Why it is four times faster</h2>
+<p>The original is slow not because the graphics card cannot keep up, but because the card spends most of its time <b>waiting for instructions</b>. For every pass, Python has to hand the card more than two thousand tiny instructions; the card executes each one in a few microseconds, but waits longer for the next instruction than it spends executing. We did three things:</p>
+<div class="card">
+  <h3>1. Record the instructions as a "macro"</h3>
+  <p>The full set of instructions for one pass is recorded only once; afterwards it is replayed as a whole every 0.25 seconds, and the card no longer waits on anyone.</p>
+  <h3>2. Merge the tiny instructions</h3>
+  <p>We rewrote the order of computation in the core network using the same mathematics, merging more than two thousand instructions into fewer than two hundred. Same result, half the time.</p>
+  <h3>3. Everything around it in Rust</h3>
+  <p>The "manual work" of cutting audio into blocks, stitching, resampling and silence detection no longer goes through Python: stable, predictable, and easy to package as a standalone program.</p>
+  <div class="toggle" role="group" aria-label="Comparison measure">
+    <button type="button" aria-pressed="true" data-mode="time">Processing time per block</button>
+    <button type="button" aria-pressed="false" data-mode="calls">Concurrent streams per graphics card</button>
+  </div>
+  <div class="bars" id="bars"></div>
+  <p class="note">The figures are measurements of the same speech sample on the same machine (NVIDIA RTX A4000 graphics card, 16 GB, compute in the same class as an RTX 3070); the original is the public code in real-time mode.</p>
+</div>
+
+<h2>How far it scales</h2>
+<div class="card calc">
+  <div>
+    <label for="gpus">Graphics cards: <b id="gpus-v">2</b></label>
+    <input type="range" id="gpus" min="1" max="16" value="2">
+    <label for="quality">Quality tier: <b id="quality-v">Standard (10 steps)</b></label>
+    <input type="range" id="quality" min="0" max="1" value="0" step="1">
+    <label for="build">Latency tier: <b id="build-v">Quality first (2.5 s)</b></label>
+    <input type="range" id="build" min="0" max="1" value="0" step="1">
+    <p class="note">"Steps" is how finely the voice is "developed". The standard tier of 10 steps sounds best; 6 steps sounds slightly rougher, but the same compute carries one more stream.</p>
+  </div>
+  <div>
+    <div class="out"><span id="calls">8</span> <small>concurrent calls</small></div>
+    <p class="note" id="calc-note"></p>
+  </div>
+</div>
+
+<h2>Latency: a tier that must be chosen in advance</h2>
+<p>How much later the audience hears the converted voice than the speaker opens their mouth depends on one setting: <b>how much further ahead the system listens</b> before it starts to "re-speak". Listening further ahead makes the transitions more natural; listening less makes the response faster. The original offers the same choice. We exported two model sets; pick one at deployment:</p>
+<div class="card">
+  <p><b>Low-latency tier</b> (listens 0.02 s ahead): about <b>0.6 s</b> overall.</p>
+  <div class="lat" id="lat-fast"></div>
+  <p style="margin-top:14px"><b>Quality-first tier</b> (listens 2 s ahead): about <b>2.5 s</b> overall.</p>
+  <div class="lat" id="lat-slow"></div>
+  <p class="note">Neither timeline includes the latency of the headphones or sound card themselves (wired about 0.03 s, Bluetooth headsets commonly 0.15 to 0.25 s). The low-latency tier is close to video-conferencing level and can be used for two-way conversation; the quality-first tier suits one-way scenarios (announcements, dubbing, live streaming, converting one party's voice and sending it to the other). Values between the two tiers are also possible; changing tier only means re-exporting a model set, which takes minutes and needs no retraining.</p>
+</div>
+
+<h2>What deployment looks like</h2>
+<div class="flow">
+  <div class="box"><b>Audio in</b>one short segment every 0.25 s, 16 kHz</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>Mimicking</b>one folder: program, runtime libraries, models</div>
+  <div class="arrow">→</div>
+  <div class="box"><b>Audio out</b>converted speech, 22 kHz</div>
+</div>
+<p>Integration is the simplest possible "feed one block in, take one block out"; any system that can send audio cut into timed blocks can connect: telephony gateways, conferencing services, live-stream ingest. The requirement is a Windows server with an NVIDIA graphics card (we measured the figures above on an RTX A4000, which is in the same class as an RTX 3070; several cards run in parallel and the stream counts add up per card; higher-end cards carry more streams). The folder is about 3 GB, most of it graphics-card runtime libraries and models.</p>
+
+<h2>How we prove it is correct</h2>
+<div class="card">
+  <table>
+    <tr><th>Check</th><th>Method</th><th>Result</th></tr>
+    <tr><td>Every computation stage</td><td>Compare our implementation against the original numerically, stage by stage</td><td class="ok">All match (differences within floating-point precision)</td></tr>
+    <tr><td>Final sound</td><td>Score "how much the output sounds like the target" with a speaker-recognition model, 0 to 1</td><td class="ok">0.67, original 0.65; low-latency tier 0.66</td></tr>
+    <tr><td>Real-time capability</td><td>Feed 20-plus seconds of speech continuously at the real cadence and watch for any block overrunning</td><td class="ok">4 concurrent streams, zero overruns</td></tr>
+    <tr><td>Standalone operation</td><td>Run the packaged folder on a clean system with no development environment at all</td><td class="ok">Pass</td></tr>
+  </table>
+  <p class="note">There is also a test bench program with a user interface that can demonstrate live from a microphone, play back files, simulate multi-stream load and export metric reports.</p>
+</div>
+
+<h2>Boundaries and risks, stated up front</h2>
+<table>
+  <tr><th>Item</th><th>Notes</th></tr>
+  <tr><td>Hardware</td><td>Only NVIDIA graphics cards are supported at present. Other cards would need a separate runtime backend; technically feasible but not done.</td></tr>
+  <tr><td>Latency</td><td>Two tiers to choose from: low-latency about 0.6 s, quality-first about 2.5 s, see above. Choose per scenario at integration time.</td></tr>
+  <tr><td>Voice source</td><td>The voice is determined entirely by the reference recording; the recording's pitch and sense of age carry over. The reference recording must be clear, with no background music.</td></tr>
+  <tr><td>Model licence</td><td>The model weights come from a public release licensed under GPL-3.0; our program code is our own implementation and contains no original code. Before external commercial use, the licence of the model weights needs a legal review, or self-trained weights should be used instead.</td></tr>
+  <tr><td>Language</td><td>The model only cares about "what sounds were spoken" and does not depend on the specific language; Chinese and English both work. Uncommon languages have not been systematically evaluated.</td></tr>
+</table>
+
+<h2>Frequently asked questions</h2>
+<details><summary>Does each target voice need separate training?</summary><p>No. Given a clear recording of 3 seconds or more, it "memorises" the voice within a few hundred milliseconds, and voices can be switched at any time during a call.</p></details>
+<details><summary>Will it change what is said?</summary><p>No. It only changes the voice; the words, speaking rate, pauses and emotional contour are all kept. It does not translate and does not understand meaning.</p></details>
+<details><summary>What about when nobody is speaking?</summary><p>There is silence detection: when it is quiet, the output is quiet too; it does not produce sound "out of nothing".</p></details>
+<details><summary>How is 4 streams per card worked out?</summary><p>The streams on one card are processed one after another, and each stream has to wait for the whole round to finish before it sounds, so the round time counts directly towards every stream's latency. In the quality-first tier each stream takes about 50 ms per block, so 4 streams make a 200 ms round, within the 240 ms cadence; in the low-latency tier each stream takes about 28 ms, so 4 streams make a 115 ms round, with more margin and more stability. Adding streams brings a round close to or past the cadence: latency doubles and any jitter drops blocks, so the cap is set at 4 streams. The measured card is an RTX A4000 (16 GB, in the same class as an RTX 3070); two cards with 4 streams each take about 120 ms per round per card. The stream count scales linearly with graphics-card performance; use the estimator above.</p></details>
+<details><summary>Does quality suffer compared with the original?</summary><p>No. We use the same model knowledge and only rewrote how it executes. Objective scores are level with or slightly above the original, and the stage-by-stage numerical comparison matches.</p></details>
+<details><summary>Can it be as delay-free as talking face to face?</summary><p>Completely imperceptible is not possible: the system has to collect at least a short stretch of speech before processing it. The low-latency tier is about 0.6 s overall, comparable to video conferencing and usable for two-way conversation; the quality-first tier is about 2.5 s and suits one-way scenarios only. A compromise between the two tiers can be chosen as needed.</p></details>
+<details><summary>Is deployment complicated?</summary><p>Place a folder of about 3 GB on a Windows server with an NVIDIA graphics card and it runs; the bundled check command verifies the integrity of the model files.</p></details>
+
+<footer>Mimicking 0.1.0 · All figures measured in October 2026 on an NVIDIA RTX A4000 (same class as an RTX 3070).</footer>
+</main>
+
+<script>
+// ---------------------------------------------------------------- how it works: four steps with illustrations
+const C = { ink: "var(--ink)", muted: "var(--muted)", accent: "var(--accent)", soft: "var(--accent-soft)", gold: "var(--gold)", paper: "var(--paper)", line: "var(--line)" };
+function wave(x, y, w, h, freq, amp, color, dash) {
+  let d = `M${x},${y}`;
+  for (let i = 0; i <= 120; i++) {
+    const t = i / 120;
+    const yy = y + Math.sin(t * freq * Math.PI * 2) * amp * h * (0.6 + 0.4 * Math.sin(t * 7));
+    d += ` L${x + t * w},${yy}`;
+  }
+  return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" ${dash ? 'stroke-dasharray="4 3"' : ""}/>`;
+}
+const steps = [
+  {
+    t: "Listen first: what is being said in this sentence",
+    body: "The system first turns the incoming sound into a shorthand that records only “what was said and how it was said”, deliberately discarding “who is saying it”. This step uses a hearing model that has learned from hundreds of thousands of hours of recordings in dozens of languages.",
+    analogy: "<b>Analogy</b>: a stenographer who notes the content but not the voice. Whoever dictates, the transcript comes out the same.",
+    svg: `<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sound becomes shorthand">
+      ${wave(20, 85, 220, 60, 9, 0.6, C.ink)}
+      <text x="130" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">The speaker's voice</text>
+      <path d="M255,85 L300,85" stroke="${C.muted}" stroke-width="2" marker-end="url(#a)"/>
+      <rect x="310" y="30" width="310" height="110" rx="12" fill="${C.soft}"/>
+      ${[0,1,2,3,4].map(i => `<rect x="${330 + i*56}" y="${50 + (i%2)*6}" width="40" height="${60 - (i%3)*10}" rx="6" fill="${C.accent}" opacity="${0.55 + 0.1*i}"/>`).join("")}
+      <text x="465" y="160" text-anchor="middle" font-size="13" fill="${C.muted}">A “content shorthand” in 20 ms cells, with no voice in it</text>
+      <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${C.muted}"/></marker></defs>
+    </svg>`
+  },
+  {
+    t: "Then memorise: what the target voice looks like",
+    body: "From a 3-second recording of the target speaker, the system distils two things: a numeric fingerprint representing the “voice characteristics”, and the spectrogram of that recording as it is. This step is done only once per voice, takes a few hundred milliseconds, and is reused afterwards.",
+    analogy: "<b>Analogy</b>: take a “voiceprint photo” of the target voice and keep a short sample of the original sound; every later sentence is “dubbed” to match that photo.",
+    svg: `<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Reference recording becomes a voiceprint">
+      ${wave(20, 85, 200, 60, 7, 0.5, C.gold)}
+      <text x="120" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">3 s recording of the target voice</text>
+      <path d="M235,85 L280,85" stroke="${C.muted}" stroke-width="2" marker-end="url(#a)"/>
+      <circle cx="360" cy="85" r="46" fill="none" stroke="${C.gold}" stroke-width="3"/>
+      ${[0,1,2,3,4,5].map(i => `<circle cx="360" cy="85" r="${8 + i*6}" fill="none" stroke="${C.gold}" stroke-width="1.2" opacity="${0.9 - i*0.12}" stroke-dasharray="${3+i} ${2+i}"/>`).join("")}
+      <text x="360" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">Voiceprint fingerprint (192 numbers)</text>
+      <rect x="450" y="40" width="170" height="90" rx="10" fill="${C.soft}"/>
+      ${[0,1,2,3,4,5,6,7].map(i => `<rect x="${460 + i*20}" y="${50 + (i*13)%30}" width="14" height="${70 - (i*13)%30}" rx="3" fill="${C.gold}" opacity="0.7"/>`).join("")}
+      <text x="535" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">Original spectrogram sample</text>
+    </svg>`
+  },
+  {
+    t: "Then re-speak: “develop” the content in the target voice",
+    body: "This is the core. Starting from a patch of random noise, the system refers to the “content shorthand” and the “voiceprint photo” and, over 10 steps, gradually corrects the noise into the spectrogram the target voice would have when saying this sentence. Each step makes it a little clearer, like developing a photograph. We turned these 10 steps into a fixed procedure that the graphics card can replay as a whole, which is the key to the speed-up.",
+    analogy: "<b>Analogy</b>: developing a photo in a darkroom. With the negative (the content) and the reference portrait (the voiceprint) in hand, 10 passes of developer and the picture appears.",
+    svg: `<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Developing step by step from noise into a spectrogram">
+      ${[0,1,2,3,4].map(i => {
+        const x = 20 + i*124, blur = 1 - i/4;
+        let cells = "";
+        for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) {
+          const sig = Math.sin((c+1)*0.9 + r*0.6) * 0.5 + 0.5;
+          const noise = ((r*7 + c*13 + i*3) % 10) / 10;
+          const v = sig * (1-blur) + noise * blur;
+          cells += `<rect x="${x + c*12}" y="${30 + r*12}" width="11" height="11" fill="${C.accent}" opacity="${0.15 + v*0.8}"/>`;
+        }
+        return cells + `<text x="${x+48}" y="125" text-anchor="middle" font-size="12" fill="${C.muted}">${["Noise","Step 2","Step 5","Step 8","Step 10"][i]}</text>` + (i < 4 ? `<path d="M${x+100},65 L${x+118},65" stroke="${C.muted}" stroke-width="2" marker-end="url(#a)"/>` : "");
+      }).join("")}
+      <text x="320" y="158" text-anchor="middle" font-size="13" fill="${C.muted}">The target voice's spectrogram sharpens step by step; each step takes the graphics card only about 2 ms</text>
+    </svg>`
+  },
+  {
+    t: "Finally speak: turn the spectrogram back into playable sound",
+    body: "A spectrogram is a “picture of sound” and cannot be played directly. The last module synthesises the actual waveform from this picture, stitches it seamlessly onto the previous block and sends it to playback. When nobody is speaking, silence detection keeps the output quiet.",
+    analogy: "<b>Analogy</b>: a score becomes a performance. The spectrogram is the score, this step is the musician; stitching makes each bar join the next with no audible break.",
+    svg: `<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Spectrogram synthesised into a waveform and stitched">
+      <rect x="20" y="40" width="170" height="90" rx="10" fill="${C.soft}"/>
+      ${[0,1,2,3,4,5,6,7].map(i => `<rect x="${30 + i*20}" y="${50 + (i*11)%30}" width="14" height="${70 - (i*11)%30}" rx="3" fill="${C.accent}" opacity="0.75"/>`).join("")}
+      <text x="105" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">Target voice spectrogram</text>
+      <path d="M205,85 L250,85" stroke="${C.muted}" stroke-width="2" marker-end="url(#a)"/>
+      ${wave(260, 85, 170, 60, 9, 0.6, C.accent)}
+      ${wave(410, 85, 170, 60, 9, 0.6, C.accent)}
+      <rect x="400" y="45" width="32" height="80" fill="${C.gold}" opacity="0.25" rx="4"/>
+      <text x="416" y="40" text-anchor="middle" font-size="11" fill="${C.gold}">Overlap stitch</text>
+      <text x="420" y="150" text-anchor="middle" font-size="13" fill="${C.muted}">The synthesised waveform, played block after block without a gap</text>
+      <text x="600" y="90" font-size="26">🔊</text>
+    </svg>`
+  },
+];
+const steplist = document.getElementById("steplist"), stage = document.getElementById("stage");
+let cur = 0;
+function showStep(i) {
+  cur = i;
+  steplist.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-selected", j === i));
+  const s = steps[i];
+  stage.innerHTML = `<h3>${i + 1}. ${s.t}</h3>${s.svg}<p>${s.body}</p><div class="analogy">${s.analogy}</div>`;
+}
+steps.forEach((s, i) => {
+  const b = document.createElement("button"); b.setAttribute("role", "tab");
+  b.innerHTML = `<span class="num">${i + 1}</span><span>${s.t.split(":")[0]}</span>`;
+  b.addEventListener("click", () => showStep(i));
+  steplist.appendChild(b);
+});
+showStep(0);
+
+// ---------------------------------------------------------------- before/after bars
+const bars = document.getElementById("bars");
+const data = {
+  time: { unit: "ms", max: 225, rows: [["Original (Python)", 225, true], ["Mimicking first version", 147, false], ["+ GPU instruction replay", 82, false], ["+ instruction merging and rewrite", 48, false]] },
+  calls: { unit: "streams", max: 5, rows: [["Original (Python)", 1.5, true], ["Mimicking standard tier", 4, false], ["Mimicking 6-step tier", 5, false]] },
+};
+function drawBars(mode) {
+  const d = data[mode];
+  bars.innerHTML = "";
+  d.rows.forEach(([l, v, old]) => {
+    const row = document.createElement("div"); row.className = "bar" + (old ? " old" : "");
+    row.innerHTML = `<div>${l}</div><div class="track"><div class="fill" style="width:0%"></div></div><div class="v">${mode === "calls" && v === 1.5 ? "1 to 2" : v} ${d.unit}</div>`;
+    bars.appendChild(row);
+    requestAnimationFrame(() => { row.querySelector(".fill").style.width = (v / d.max * 100) + "%"; });
+  });
+  document.querySelectorAll(".toggle button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+}
+document.querySelectorAll(".toggle button").forEach(b => b.addEventListener("click", () => drawBars(b.dataset.mode)));
+drawBars("time");
+
+// ---------------------------------------------------------------- capacity calculator
+const gpus = document.getElementById("gpus"), quality = document.getElementById("quality");
+function calc() {
+  const build = document.getElementById("build");
+  const g = +gpus.value, q = +quality.value, b = +build.value;
+  // measured per-card capacity on one RTX A4000: 4 calls at 10 steps, 5 at 6 steps, for both builds. Calls on
+  // one card run one after another, so every call waits for the whole round: the low-latency build buys
+  // headroom (115 ms round instead of 200 ms), not more calls.
+  const per = q === 0 ? 4 : 5;
+  const ms = b === 0 ? (q === 0 ? "about 50" : "about 38") : (q === 0 ? "about 28" : "about 22 (estimated)");
+  document.getElementById("gpus-v").textContent = g;
+  document.getElementById("quality-v").textContent = q === 0 ? "Standard (10 steps)" : "Economy (6 steps)";
+  document.getElementById("build-v").textContent = b === 0 ? "Quality first (2.5 s)" : "Low latency (0.6 s)";
+  document.getElementById("calls").textContent = g * per;
+  document.getElementById("calc-note").textContent = `Estimated at ${per} streams per RTX A4000 (same class as an RTX 3070): measured ${ms} ms per block per stream; the streams on one card are processed in turn and each one waits for the whole round, so a round is kept to about half of the 240 ms cadence. Two cards measured at 8 streams with zero overruns. Higher-end graphics cards scale in proportion to compute.`;
+}
+gpus.addEventListener("input", calc); quality.addEventListener("input", calc); document.getElementById("build").addEventListener("input", calc); calc();
+
+// ---------------------------------------------------------------- latency timelines (seconds)
+// collect one 0.25 s block, wait for the right context (rounded up to the next block), process, play out
+function timeline(id, segs, ticks) {
+  const el = document.getElementById(id);
+  const total = segs.reduce((a, s) => a + s[1], 0);
+  let x = 0;
+  segs.forEach(([l, s, c]) => {
+    const d = document.createElement("div"); d.className = "seg"; d.style.left = (x / total * 100) + "%"; d.style.width = (s / total * 100) + "%"; d.style.background = c; d.textContent = s / total >= 0.12 ? l : ""; d.title = `${l}: ${s} s`;
+    el.appendChild(d); x += s;
+  });
+  ticks.forEach(t => { const k = document.createElement("div"); k.className = "tick"; k.style.left = (t / total * 100) + "%"; k.textContent = t + " s"; el.appendChild(k); });
+}
+timeline("lat-fast", [["Collect 0.25 s", 0.25, "var(--accent)"], ["Listen 0.02 s ahead (block-aligned to 0.25)", 0.25, "var(--muted)"], ["Process 0.05", 0.05, "var(--gold)"], ["Playback buffer 0.1", 0.1, "var(--accent)"]], [0, 0.25, 0.5, 0.65]);
+timeline("lat-slow", [["Collect 0.25 s", 0.25, "var(--accent)"], ["Listen to the next 2 s of speech", 2.0, "var(--muted)"], ["Process 0.05", 0.05, "var(--gold)"], ["Playback buffer 0.1", 0.1, "var(--accent)"]], [0, 1, 2, 2.4]);
+</script>

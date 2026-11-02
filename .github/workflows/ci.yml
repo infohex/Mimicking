@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Pure-Rust checks: format, lints, build, and the tests that need no GPU. The DSP parity tests and the ONNX
+  # tests skip themselves when fixtures / ORT_DYLIB are absent, so this job never needs the models.
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: fmt
+        run: cargo fmt --all -- --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: build
+        run: cargo build --workspace --release
+      - name: test (no GPU)
+        run: cargo test --workspace --release
+      - name: doc
+        run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  # Full parity against the PyTorch fixtures on a machine with the graphs, the fixtures and a CUDA GPU.
+  # Runs only on a self-hosted runner labelled `gpu` and only when triggered by hand.
+  parity-gpu:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, gpu]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: verify models
+        run: cargo run --release -p mimic-cli -- --models models/Mimicking-v2.0-lowlat models verify
+        env:
+          ORT_DYLIB_PATH: ${{ vars.ORT_DYLIB_PATH }}
+      - name: parity
+        run: cargo test --workspace --release -- --nocapture --test-threads=1
+        env:
+          MIMIC_ORT_DYLIB: ${{ vars.ORT_DYLIB_PATH }}
+          MIMIC_GPU: ${{ vars.MIMIC_GPU || '0' }}

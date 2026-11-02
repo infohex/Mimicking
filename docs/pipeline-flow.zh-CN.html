@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mimicking 流程图</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: tab strip, a vertical tree (top-to-bottom chain of stage cards, parallel branches side by side), detail panel on the right (stacks below on phones) */
+:root {
+  --bg: #f5f6f4; --panel: #ffffff; --fg: #1b2420; --muted: #5d6a64; --line: #d6dcd8; --accent: #0e6f6b; --accent-soft: #d9ecea; --hot: #c2552a;
+  --lane-dsp: #e8efe7; --lane-onnx: #e5eaf3; --lane-pipe: #f3eadc; --lane-tool: #efe6ee; --lane-host: #ece9e1;
+  --font-display: "Manrope", "Segoe UI", system-ui, sans-serif; --font-mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#121715; --panel:#1a211e; --fg:#e6ebe8; --muted:#9aa8a1; --line:#2d3732; --accent:#5fc3bd; --accent-soft:#19403d; --hot:#e8865e;
+  --lane-dsp:#1b2a21; --lane-onnx:#1b2130; --lane-pipe:#2b2518; --lane-tool:#2a1f2a; --lane-host:#24231d; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg:#121715; --panel:#1a211e; --fg:#e6ebe8; --muted:#9aa8a1; --line:#2d3732; --accent:#5fc3bd; --accent-soft:#19403d; --hot:#e8865e;
+  --lane-dsp:#1b2a21; --lane-onnx:#1b2130; --lane-pipe:#2b2518; --lane-tool:#2a1f2a; --lane-host:#24231d; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-display); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+.sub { color: var(--muted); margin: 4px 0 16px; max-width: 80ch; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.tab { border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 999px; padding: 6px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.wrap > * { min-width: 0; }
+@media (max-width: 960px) { .wrap { grid-template-columns: 1fr; } }
+.stage { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; padding: 14px 12px 6px; }
+.stage h2 { font-size: 1.05rem; margin: 0 6px 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 6px 12px; font: 400 12px var(--font-mono); color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); }
+/* vertical tree */
+.chain { display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; }
+.node { width: min(100%, 300px); background: var(--panel); border: 1.2px solid var(--line); border-radius: 9px; padding: 8px 12px; cursor: pointer; text-align: left; transition: border-color .15s; }
+.node:hover, .node.active { border-color: var(--accent); border-width: 2px; padding: 7px 11px; }
+.node.active { background: var(--accent-soft); }
+.node.dsp { background: var(--lane-dsp); } .node.onnx { background: var(--lane-onnx); } .node.pipe { background: var(--lane-pipe); } .node.tool { background: var(--lane-tool); } .node.host { background: var(--lane-host); }
+.node.active.dsp, .node.active.onnx, .node.active.pipe, .node.active.tool, .node.active.host { background: var(--accent-soft); }
+.node .lb { font-weight: 700; font-size: 13.5px; }
+.node .mt { font: 400 11.5px var(--font-mono); color: var(--muted); margin-top: 1px; overflow-wrap: anywhere; }
+.node .ms { font: 500 11px var(--font-mono); color: var(--hot); margin-left: 6px; }
+.node .cr { font: 500 10.5px var(--font-mono); color: var(--accent); margin-top: 2px; }
+.arrow { width: 2px; height: 18px; background: var(--muted); opacity: .6; position: relative; }
+.arrow::after { content: ""; position: absolute; left: -4px; bottom: -1px; border: 5px solid transparent; border-top: 7px solid var(--muted); opacity: .9; }
+.arrow.lbl::before { content: attr(data-l); position: absolute; left: 10px; top: 0; font: 400 10.5px var(--font-mono); color: var(--muted); white-space: nowrap; }
+.fork { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 18px; width: 100%; padding: 6px 4px; border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); margin: 2px 0; }
+.branch { display: flex; flex-direction: column; align-items: center; flex: 1 1 240px; max-width: 320px; min-width: 200px; }
+.branch .bl { font: 600 11px var(--font-display); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
+.join { font: 400 11px var(--font-mono); color: var(--muted); margin: 2px 0; }
+/* detail */
+.detail { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; position: sticky; top: 8px; min-width: 0; }
+.detail h3 { font-size: 1.05rem; margin: 0 0 2px; }
+.detail .crate { display: inline-block; font: 500 11px var(--font-mono); color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 1px 6px; margin-bottom: 8px; }
+.detail dl { display: grid; grid-template-columns: 5.5em 1fr; gap: 4px 10px; margin: 8px 0; }
+.detail dt { color: var(--muted); font-size: 12px; }
+.detail dd { margin: 0; font-family: var(--font-mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.detail p { margin: 8px 0 0; font-size: 13.5px; }
+.detail .hint { color: var(--muted); font-size: 13px; }
+.detail dl.io { grid-template-columns: 3em 1fr; gap: 6px 10px; margin: 10px 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.detail dl.io dt { font-weight: 600; color: var(--accent); }
+.detail dl.io dd { font-family: inherit; font-size: 13.5px; line-height: 1.45; }
+/* timing bar */
+.bar { margin: 12px 6px 10px; }
+.bar .track { display: flex; height: 22px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+.bar .seg { height: 100%; min-width: 2px; cursor: pointer; opacity: .85; }
+.bar .seg:hover, .bar .seg.active { opacity: 1; outline: 2px solid var(--hot); outline-offset: -2px; }
+.bar .lg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font: 400 12px var(--font-mono); color: var(--muted); }
+.bar .lg b { color: var(--fg); font-weight: 500; }
+/* tables, milestones, glossary */
+table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 8px 0 14px; }
+table.t th, table.t td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+table.t th { color: var(--muted); font-weight: 600; font-size: 12px; }
+table.t td.n { font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
+.timeline { display: grid; gap: 10px; padding: 6px; }
+.ms-card { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--panel); display: grid; grid-template-columns: 5.5em 1fr; gap: 4px 12px; }
+.ms-card .tag { font: 800 14px var(--font-display); color: var(--accent); }
+.ms-card .num { font: 500 12px var(--font-mono); color: var(--hot); }
+.ms-card .num span { color: var(--muted); }
+.ms-card ul { margin: 4px 0 0; padding-left: 18px; font-size: 13.5px; }
+.note { font-size: 12.5px; color: var(--muted); padding: 6px 6px 8px; }
+.gloss { padding: 6px; }
+.gloss input { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); margin-bottom: 12px; }
+.gloss h4 { font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 16px 0 6px; }
+.gloss table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.gloss td { vertical-align: top; padding: 7px 8px; border-top: 1px solid var(--line); }
+.gloss td:first-child { white-space: nowrap; font-weight: 800; width: 7em; }
+.gloss td:nth-child(2) { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); width: 15em; overflow-wrap: anywhere; }
+.gloss .where { color: var(--muted); font-size: 12.5px; }
+@media (max-width: 700px) { .gloss td:first-child, .gloss td:nth-child(2) { width: auto; } .gloss tr { display: grid; grid-template-columns: 1fr; border-top: 1px solid var(--line); padding: 6px 0; } .gloss td { border-top: none; padding: 2px 8px; } }
+kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="lang-switch" style="font:13px/1.4 system-ui,sans-serif;opacity:.75;margin:0 0 10px"><a href="pipeline-flow.html">English</a> | 中文</div>
+<h1>Mimicking 流程图</h1>
+<p class="sub">2.0 正式版（2026-11-01）。自上而下读：每张卡是一级处理，并排的分支是同时进行、随后汇合的路径。点卡片看输入、输出、作用、去向、形状、耗时和所在文件。耗时为 RTX A4000、CUDA Graph、单路、块 240 ms、10 步、CFG 0.7 下的 Lab 实测。</p>
+<div class="tabs" role="tablist" id="tabs"></div>
+<div class="wrap">
+  <div>
+    <div class="stage">
+      <h2 id="title"></h2>
+      <div class="legend" id="legend"></div>
+      <div id="tree"></div>
+      <div class="bar" id="bar" hidden></div>
+      <div id="extra"></div>
+      <div class="timeline" id="timeline" hidden></div>
+      <div class="gloss" id="gloss" hidden><input id="gloss-q" type="search" placeholder="搜索缩写、全称或说明，例如 CFG、码本、Silero、速率微调"><div id="gloss-list"></div></div>
+      <div class="note" id="note"></div>
+    </div>
+  </div>
+  <aside class="detail" id="detail" aria-live="polite"><p class="hint">点一张卡片。<kbd>↑</kbd> <kbd>↓</kbd> 沿主链移动。</p></aside>
+</div>
+<script>
+// ---------------------------------------------------------------- data
+// A view is a chain: a list of steps; a step is a node, or {fork:[{label, chain:[...]}, ...], join:"汇合说明"}.
+// node: {id, lane, label, meta, ms, crate, file, shape, io:{i,o,r,n}}; lanes: pipe (Rust 流水线) dsp (纯 Rust DSP) onnx (GPU 图) host (使用方 / Lab) tool (Python 工具)
+const LANE_NAMES = { pipe: "mimic-pipeline（Rust）", dsp: "mimic-dsp（纯 Rust 信号处理）", onnx: "ONNX 图（GPU，CUDA Graph）", host: "使用方 / 测试台线程", tool: "Python 工具 / 训练" };
+
+const runtime = {
+  title: "实时链路：一块 240 ms 的输入怎样变成一块输出（Mimicking-v2.0-lowlat，图 2.0.1）",
+  lanes: ["host", "pipe", "dsp", "onnx"],
+  note: "一块 = 16 kHz 3840 样本进，22.05 kHz 5292 样本出。160 ms 套：2560 进 / 3528 出，窗口 2.74 s，内容 36 帧 → 63 条件帧，序列 321；每块计算量几乎不变（约 30 ms），只是来得更密。门控与模型并行：门关着时模型照跑（窗口必须连续），只是输出淡出到零。",
+  chain: [
+    { id: "mic", lane: "host", label: "麦克风 / 文件", meta: "设备采样率 → 16 kHz 单声道，攒满一块", crate: "使用方（Lab：engine.rs 采集线程 + StreamResampler）", file: "MimickingLab/crates/mimic-lab/src/engine.rs", shape: "f32[3840] @16 kHz",
+      io: { i: "声卡回调送来的设备采样率音频（Lab：WASAPI 共享模式，48 kHz）。", o: "16 kHz 单声道块，3840 样本 = 240 ms（160 ms 套 2560）。", r: "整条链路的节拍单位：攒满一块才能算，所以块长本身是延时的第一项。", n: "Runner::push(&mut session, &block16)。采集溢出要丢不要攒；麦克风的自动增益 / 噪声抑制要关（AGC 在响的敲击后压低增益几秒）。" } },
+    { fork: [
+      { label: "门控分支（CPU，与模型并行）", chain: [
+        { id: "vad", lane: "onnx", label: "Silero VAD 门", meta: "silero_vad.onnx · CPU · 64 点上下文 + 512 点块", ms: 1.0, crate: "mimic-onnx::SileroVad（实现 mimic-core::Vad）", file: "crates/mimic-onnx/src/vad.rs · models/vad/silero_vad.onnx", shape: "f32[3840] → 7 片概率 → 0 / 1",
+          io: { i: "当前输入块。按 512 点切片，每片前面接上一片的最后 64 点，递归状态 (2,1,128) 带着走。", o: "本块门值 0 / 1：任一片概率 > 0.5 开门；连续 2 块所有片 < 0.35 关门；块电平 < −60 dBFS 直接静音。", r: "扩散模型在无人声时会\"编话\"，门把无人声时段的输出压成静音。Silero 认的是语音本身：键盘、敲桌、翻纸不开门（真实录音 0/144、0/179 块），干净语音全召回，起音延迟 0–160 ms。别人的说话声按设计放行。", n: "决策进入 Session 的门控队列，按算法延迟对齐到它所属的输出块（低延迟套 0 块延迟），作用在\"切输出区 + SOLA + 门控\"。能量门 EnergyVad 仅作缺模型时的退路（分不开打字与说话）。离线文件转换不挂门。" } },
+      ]},
+      { label: "模型主路", chain: [
+        { id: "win", lane: "pipe", label: "滚动窗口 2.82 s", meta: "左上下文 2.5 s | 交叉淡化 0.05 | 搜索 0.02 | 块 0.24 | 右前瞻 0.02", crate: "mimic-pipeline::Session", file: "crates/mimic-pipeline/src/lib.rs", shape: "f32[45120] @16 kHz",
+          io: { i: "新的一块 3840 样本。", o: "整段窗口 45120 样本（2.82 s）：左移一块，新块接到末尾；会话开始时窗口全零。", r: "给内容编码器 2.5 s 左上下文和 0.02 s 右前瞻。右前瞻是算法延迟的一部分（放大到 0.1 s 对 2.0 的可懂度无帮助，已实测）。", n: "XLS-R，无条件。" } },
+        { id: "xlsr", lane: "onnx", label: "XLS-R 内容编码", meta: "xlsr.onnx · 第 1–12 层 · 逐窗归一 · 140 帧 @50 Hz", ms: 4.5, crate: "mimic-model::XlsrEncoder", file: "models/…/xlsr.onnx（329 MB，Apache-2.0，各套硬链接共用同几何的图）", shape: "[1,45120] → [1,140,1024]",
+          io: { i: "整窗 16 kHz 波形，图内先按窗做均值方差归一。", o: "[1,140,1024]：每 20 ms 一帧的 1024 维内容特征。", r: "\"速记员\"：把说了什么编成与说话人关系很弱的向量。注意力模型，每帧都受窗口内容影响，所以流式窗口的特征与整句略有差别（原始余弦 0.91）；过码本后差别被抹平（0.998）。", n: "丢前 100 帧。" } },
+        { id: "cut", lane: "pipe", label: "丢前 100 帧 → 40 帧", meta: "(2.5 − 0.5) s × 50 Hz 只为 XLS-R 服务", crate: "mimic-pipeline::Runner", file: "crates/mimic-pipeline/src/lib.rs", shape: "[1,140,1024] → [1,40,1024]",
+          io: { i: "140 帧内容特征。", o: "最后 40 帧（0.5 s 左上下文 + 块 + 交叉淡化 + 右前瞻 ≈ 0.8 s）。", r: "内容编码器要 2.5 s 左上下文才稳，DiT 只要 0.5 s。", n: "长度调节（含码本）。" } },
+        { id: "lr", lane: "onnx", label: "码本 + 长度调节", meta: "length_regulator.onnx · fp32 · K=4096 软分配 · GroupNorm 用冻结常数", ms: 0.7, crate: "mimic-model::InterpolateRegulator（图内：码本 MatMul+Softmax+MatMul → Linear → 插值 → 4×(Conv3+GN+Mish) → 1×1）", file: "models/Mimicking-v2.0-*/length_regulator.onnx（MimickingTrain 导出，--train-config 烘码本，--norm-stats 冻结统计量）", shape: "[1,40,1024] → [1,70,384]",
+          io: { i: "40 帧原始 XLS-R 特征。", o: "[1,70,384]：86 Hz 声学帧率的条件序列（2.0 独有：先过 4096 质心的软分配码本去音色，再调节）。", r: "2.0 的核心改动。码本：每帧换成 softmax(−d²/tau) 加权的质心平均，音色信息大幅减少（说话人探针 86 % → 37 %），这是\"更像目标、更少泄漏\"的来源。GroupNorm：码本输出近乎常量（第一层卷积输出方差 0.0095），按 40 帧段算的统计量会乱晃、DiT 整段糊掉（流式 WER 16 %）；图 2.0.1 把 4 个 GroupNorm 的均值方差冻成 64 句的常数（流式 7.6 %）。", n: "拼接提示条件。" } },
+        { id: "cat", lane: "pipe", label: "拼接提示条件", meta: "258 提示帧 + 70 块帧 = 328", crate: "mimic-pipeline::Runner", file: "crates/mimic-pipeline/src/lib.rs", shape: "mu [1,328,384]",
+          io: { i: "Prompt.cond [1,258,384]（参考音频的条件，每个声音算一次）+ 本块 [1,70,384]。", o: "mu [1,328,384]。", r: "让 DiT 同时看到\"参考怎么说\"和\"现在说什么\"。", n: "DiT。" } },
+        { id: "dit", lane: "onnx", label: "DiT 流匹配 ×10 步", meta: "dit_step_fused.onnx · fp16 融合算子 · 2.0 ms/步 · batch 2（CFG 0.7）", ms: 20.2, crate: "mimic-model::DitStepFused + mimic-pipeline::EulerCfg", file: "models/Mimicking-v2.0-*/dit_step_fused.onnx（37 MB，自训权重）", shape: "[2,80,328] ×（x, prompt_x, mu, style, t, dt, cfg）→ x_next [1,80,328]",
+          io: { i: "mu；prompt_x（前 258 帧 = 参考梅尔谱，其余 0）；style [1,192]；噪声 z（Session 的 StdRng，种子固定）；标量 t、dt、cfg。", o: "x [1,80,328]：前 258 帧是参考回填，后 70 帧是本块新生成的梅尔谱。", r: "从噪声出发 10 步欧拉，每步算条件 / 无条件两份速度并按 CFG 0.7 合成。384 维、9 层、6 头、RoPE、SwiGLU、U-ViT 跳连，18.27 M 参数（我们的定义；原定义里 7.4 M 参数前向不用）。x 常驻设备，每步只传 t / dt / cfg。", n: "切出块梅尔谱。只要调节器给的是整句口径的条件，70 帧的短上下文对 DiT 不是问题（整句调节器 + 分块 DiT 的 WER 7.9 %）。" } },
+        { id: "slice", lane: "pipe", label: "切出块梅尔谱", meta: "去掉 258 提示帧", crate: "mimic-pipeline::Runner", file: "crates/mimic-pipeline/src/lib.rs", shape: "[1,80,328] → [1,80,70]",
+          io: { i: "DiT 输出。", o: "[1,80,70]：本块的声谱（0.81 s）。", r: "参考回填只是给 DiT 的示范，不输出。", n: "同时送两处：① HiFT f0 预测（求音高 → 激励源）；② HiFT 主体（主体要梅尔谱和激励谱两样）。" } },
+        { fork: [
+          { label: "激励源分支", chain: [
+            { id: "f0", lane: "onnx", label: "HiFT f0 预测", meta: "hift_f0.onnx", ms: 0.8, crate: "mimic-model::HiftVocoder", file: "models/…/hift_f0.onnx（Apache-2.0）", shape: "[1,80,70] → [1,70] Hz", io: { i: "块梅尔谱。", o: "每帧基频，无声帧 0。", r: "源-滤波结构的声码器要知道每帧音高。", n: "谐波激励源。" } },
+            { id: "src", lane: "dsp", label: "谐波激励源", meta: "9 次谐波 + 噪声，相位连续", ms: 0.6, crate: "mimic-dsp::hift::harmonic_source", file: "crates/mimic-dsp/src/hift.rs", shape: "[1,70] → [1,17920] @22.05 kHz", io: { i: "f0。", o: "激励波形 70 × 256 = 17920 样本。", r: "f0 > 0 的帧 = 9 个谐波正弦叠加 + 噪声；f0 = 0 的帧 = 纯噪声。", n: "16 点 STFT。" } },
+            { id: "stft", lane: "dsp", label: "16 点 STFT", meta: "hop 4 · DFT 矩阵乘", ms: 0.4, crate: "mimic-dsp::hift::stft_small", file: "crates/mimic-dsp/src/hift.rs", shape: "[1,17920] → [1,18,4481]", io: { i: "激励波形。", o: "9 实部 + 9 虚部通道的小 STFT。", r: "HiFT 主体在谱域融合激励。", n: "HiFT 主体。" } },
+          ]},
+          { label: "声谱直通", chain: [
+            { id: "melpass", lane: "pipe", label: "块梅尔谱", meta: "[1,80,70] 直接送主体", crate: "mimic-pipeline::Runner", file: "crates/mimic-pipeline/src/lib.rs", shape: "[1,80,70]", io: { i: "切出的块梅尔谱。", o: "原样。", r: "主体的第一路输入。", n: "HiFT 主体。" } },
+          ]},
+        ], join: "两路汇入 HiFT 主体" },
+        { id: "body", lane: "onnx", label: "HiFT 主体", meta: "hift_body.onnx · fp16 · 防溢出 Snake", ms: 3.3, crate: "mimic-model::HiftVocoder", file: "models/…/hift_body.onnx（35 MB，Apache-2.0）", shape: "[1,80,70] + [1,18,4481] → [1,18,4481]",
+          io: { i: "块梅尔谱 + 激励谱。", o: "9 通道对数幅度 + 9 通道相位。", r: "conv_pre → 两级 ×8 上采样与激励融合 → 3 组 Snake 残差块 → conv_post。", n: "ISTFT。" } },
+        { id: "istft", lane: "dsp", label: "ISTFT + 限幅", meta: "exp / sin → 重叠相加 → ±0.99", ms: 1.0, crate: "mimic-dsp::hift::istft_from_body", file: "crates/mimic-dsp/src/hift.rs", shape: "[1,18,4481] → [1,17920]",
+          io: { i: "幅度 / 相位谱。", o: "17920 样本的 22.05 kHz 波形（整个 0.81 s 条件区的声音）。", r: "谱 → 波形。", n: "切输出区 + SOLA + 门控。" } },
+      ]},
+    ], join: "门值与波形在输出级汇合" },
+    { id: "out", lane: "pipe", label: "切输出区 + SOLA + 门控", meta: "取末尾 6615 样本（去 441 右前瞻）· ±441 搜索 · 882 交叉淡化 · 门 0/1 + 40 ms 斜坡", ms: 0.3, crate: "mimic-pipeline::Runner + mimic-dsp::Sola", file: "crates/mimic-dsp/src/sola.rs", shape: "[1,17920] + 上块尾部 → f32[5292] @22.05 kHz",
+      io: { i: "整条件区波形 + 上一块尾部（882 样本）+ 对齐到本块的门值。", o: "5292 样本（240 ms）。门 = 0 → 整块置零；门刚翻转 → 块首 40 ms 斜坡。", r: "从条件区末尾取本块对应的 0.30 s（去掉 0.02 s 右前瞻），在 ±20 ms 内找与上一块尾部相关最高的滞后再 sin² 交叉淡化，消掉块边界的相位跳变。算法固有延迟 = 右前瞻 441 + 交叉淡化 882 + 搜索 441 = 1764 样本 = 80 ms（块长不算在内，它在\"攒一块\"里）。", n: "使用方的输出重采样与扬声器队列。" } },
+    { id: "spk", lane: "host", label: "输出重采样 + 队列控制器 → 扬声器", meta: "22.05 kHz → 设备采样率 · 余量 50–150 ms · 播放速率微调 ±1 %", crate: "使用方（Lab：engine.rs 队列控制器 + resample.rs Varispeed + audio.rs 回调）", file: "MimickingLab/crates/mimic-lab/src/engine.rs", shape: "f32[5292] → 设备采样率 → 环形队列",
+      io: { i: "每块 5292 样本。", o: "声卡回调按设备节拍消费的连续流。", r: "生产是一块一块来的，消费是连续的，中间要一段余量吸收块耗时抖动（GPU 锁频后 50 ms 够，不锁 150 ms）。麦克风与扬声器晶振常差 0.1–0.3 %，队列每秒漂几毫秒：用 ±1 % 的播放速率微调连续吸收（人耳听不出），补静音 / 丢输入只在真正卡顿时兜底。", n: "延时预算（160 ms 块）：攒块 160 + 计算 ~30 + 余量 50 + 算法固有 80 + 声卡 20–40 ≈ 330–350 ms；240 ms 块再加 80 ms。" } },
+  ],
+};
+
+const prompt = {
+  title: "参考提示：每个声音算一次（约 350 ms），之后每块复用",
+  lanes: ["host", "pipe", "dsp", "onnx"],
+  note: "参考只决定音色；更长的参考也只取前 3 s。换声音用 Session::set_prompt，窗口与 SOLA 状态保留，无接缝。CAM++ 是唯一的动态形状图，不走 CUDA Graph，所以放到独立线程算好再切换。",
+  chain: [
+    { id: "ref", lane: "host", label: "参考音频 3 s", meta: "22.05 kHz，截断 / 补零到 66150", crate: "Stages::prepare_prompt", file: "crates/mimic-pipeline/src/lib.rs", shape: "f32[66150]", io: { i: "任意采样率的参考 wav（使用方读入并重采样到 22.05 kHz）。", o: "3 s 定长。", r: "三条支路的共同起点。", n: "同时送：① 重采样 → 16 kHz（内容与音色两条支路）；② 梅尔谱。" } },
+    { fork: [
+      { label: "内容条件", chain: [
+        { id: "rs", lane: "dsp", label: "重采样 → 16 kHz", meta: "441:320 多相 sinc，宽度 6", crate: "mimic-dsp::SincResampler", file: "crates/mimic-dsp/src/resample.rs", shape: "f32[48000]", io: { i: "66150 @22.05 kHz。", o: "48000 @16 kHz。", r: "XLS-R 与 CAM++ 都吃 16 kHz。", n: "XLS-R（参考长度）与 fbank。" } },
+        { id: "xr", lane: "onnx", label: "XLS-R（参考长度）", meta: "xlsr_ref.onnx", crate: "mimic-model::XlsrEncoder", file: "models/…/xlsr_ref.onnx", shape: "[1,48000] → [1,149,1024]", io: { i: "16 kHz 参考。", o: "149 帧内容特征。", r: "参考\"说了什么\"。", n: "参考长度的调节器。" } },
+        { id: "lrr", lane: "onnx", label: "码本 + 长度调节（→258）", meta: "length_regulator_ref.onnx · 同样烘了码本与冻结统计量", crate: "mimic-model::InterpolateRegulator", file: "models/Mimicking-v2.0-*/length_regulator_ref.onnx", shape: "[1,149,1024] → [1,258,384]", io: { i: "149 帧。", o: "Prompt.cond [1,258,384]。", r: "与实时链路同一个模块、另一种静态形状；码本与 GroupNorm 常数同样在图内。", n: "Prompt。" } },
+      ]},
+      { label: "音色向量", chain: [
+        { id: "fb", lane: "dsp", label: "Kaldi fbank", meta: "25 / 10 ms · povey · 80 bin · 去均值", crate: "mimic-dsp::KaldiFbank", file: "crates/mimic-dsp/src/fbank.rs", shape: "[T,80]", io: { i: "16 kHz 参考。", o: "fbank 特征。", r: "CAM++ 的输入。", n: "CAM++。" } },
+        { id: "cam", lane: "onnx", label: "CAM++ 音色向量", meta: "campplus.onnx · 动态形状 · 中文模型 campplus_cn_common", crate: "mimic-model::CampplusSpeaker", file: "models/…/campplus.onnx（Apache-2.0）", shape: "[1,T,80] → [1,192]", io: { i: "fbank。", o: "Prompt.style，192 维。", r: "DiT 把它当一个 token。2.x 计划换英文模型；评测时另用英文 VoxCeleb 模型（ref/sv_en）做第二把尺子。", n: "Prompt。" } },
+      ]},
+      { label: "声谱示范", chain: [
+        { id: "mel", lane: "dsp", label: "梅尔谱", meta: "1024 / 256 / 80 · slaney · log", crate: "mimic-dsp::MelSpec", file: "crates/mimic-dsp/src/mel.rs", shape: "[80,258]", io: { i: "22.05 kHz 参考。", o: "Prompt.mel。", r: "DiT 的 prompt_x：生成本块时前 258 帧放参考的真实声谱作示范。", n: "Prompt。" } },
+      ]},
+    ], join: "三路汇成一个 Prompt" },
+    { id: "pr", lane: "pipe", label: "Prompt", meta: "cond + mel + style", crate: "mimic-core::Prompt", file: "crates/mimic-core/src/lib.rs", shape: "[1,258,384] · [1,80,258] · [1,192]", io: { i: "三条支路的输出。", o: "可缓存、可热换的 Prompt 对象。", r: "实时链路里的\"拼接提示条件\"取 cond，DiT 取 mel 与 style。", n: "Session::new / set_prompt。" } },
+  ],
+};
+
+const build = {
+  title: "模型从哪里来：自训权重（2.0 正式版）",
+  lanes: ["tool", "onnx", "pipe"],
+  note: "套由 MimickingTrain 整套导出：调节器与 DiT 用自训权重，XLS-R / CAM++ / HiFT 从 ref/models 的 Apache 权重直接导；Rust 运行时按目录的 manifest 加载。",
+  chain: [
+    { fork: [
+      { label: "自训权重（MimickingTrain）", chain: [
+        { id: "data", lane: "tool", label: "数据与特征缓存", meta: "LibriTTS-R train-clean-100/360/other-500 · 梅尔 + CAM++ 缓存 · 音色扰动", crate: "mimictrain.data", file: "MimickingTrain/mimictrain/data/ · C:/MimickingData/cache", shape: "int16 波形 + fp16 梅尔 + 192 维风格", io: { i: "OpenSLR 141（CC BY 4.0）。", o: "分片缓存与清单。", r: "训练的输入；扰动（音高 ±8 半音、共振峰 ±35 %、EQ、增益）逼模型从参考学音色。", n: "1.0 训练。" } },
+        { id: "v1", lane: "tool", label: "1.0：从零训练 100 k 步", meta: "train_tiny_sp.json · 两张 A4000 DDP", crate: "mimictrain.train", file: "MimickingTrain/runs/Mimicking-v1.0", shape: "ema.safetensors（dit.* 18.27 M + regulator.* 2.32 M = 20.6 M）", io: { i: "特征缓存 + 冻结的 XLS-R L12。", o: "1.0 权重：英文模型像目标 0.635 / 像源 0.524：音色不够像、泄漏偏高。", r: "我们的 DiT 与调节器定义（与原模块对拍 3e-7）第一次有自己的权重。", n: "码本 + 2.0 微调。" } },
+        { id: "cb", lane: "tool", label: "内容码本 K=4096", meta: "tools/content_gate.py fit · k-means on XLS-R L12 帧", crate: "mimictrain.codebook", file: "C:/MimickingData/codebooks/xlsr12_k4096.safetensors", shape: "质心 4096×1024 + tau", io: { i: "训练集 XLS-R 帧。", o: "码本（推理必需，随权重走）。", r: "软分配回填后说话人探针 86 % → 37 %，内容探针保持 91 %：去音色的信息瓶颈。", n: "2.0 微调（训练时也经过它）。" } },
+        { id: "v2", lane: "tool", label: "2.0：热启动微调 10 k 步", meta: "ft_vq4096.json · lr 5e-5 余弦 · 4 h 06", crate: "mimictrain.train", file: "MimickingTrain/runs/Mimicking-v2.0（RELEASE.md）", shape: "ema.safetensors + 码本 + regulator_norm_stats.json", io: { i: "1.0 EMA + 码本。", o: "2.0 权重：英文模型 0.700 / 0.432，离线 WER 6.7 %。", r: "相似度在 2 500 步后平台，第 10 000 步冻结（续训到 30 k 的尝试在 11 400 步停）。", n: "导出。统计量：tools/stream_diag.py --compute-stats 64 → 64 句整句的 GroupNorm 均值方差。" } },
+        { id: "exp", lane: "tool", label: "mimictrain.export（整套自给自足）", meta: "--train-config 烘码本 · --norm-stats 冻结统计量 · --shared from-weights 导 XLS-R / CAM++ / HiFT · 2.0.1", crate: "mimictrain.export", file: "MimickingTrain/mimictrain/export/", shape: "dit_step(.fused) fp16 融合 + length_regulator(.ref) fp32 + xlsr* / campplus / hift_* + manifest + fixtures/", io: { i: "权重、码本、统计量、块长 / 右前瞻 / 提示长度；ref/models 的 hift.pt 与 campplus_cn_common.bin，XLS-R 按 HF 名字。", o: "一套 10 个文件 + manifest（content_codebook、regulator_norm_stats、provenance）+ Rust 对拍夹具。", r: "每种块长一套；20 ms 格取整（0.25 → 240 ms）；导出后检查所有图 I/O 为 fp32。", n: "对拍 tools/export_parity.py（ORT 对 PyTorch：调节器 6.5e-4，DiT 融合图 3.4e-4）；导出前先用 stream_diag.py --segmented 复现流式 WER。" } },
+      ]},
+    ], join: "都写到 Mimicking/models/<套>/" },
+    { id: "g", lane: "onnx", label: "models/ 模型目录", meta: "Mimicking-v2.0-lowlat（默认）· -b0.16 · -b0.32 · vad/", crate: "mimic-model::ModelFiles / Manifest", file: "models/", shape: "每套 10 个文件 + manifest.json", io: { i: "导出产物。", o: "mimic models verify 校验 sha256；ModelFiles::config() 读回几何。", r: "一套几何一个目录；换块长 = 换目录重新加载（Lab 的块长单选按 manifest name + 右前瞻归家族）。", n: "ModelSet::load。" } },
+    { id: "load", lane: "pipe", label: "ModelSet::load → Stages → Runner", meta: "一张卡一个 Runner · 全部加载后再开始 · CUDA Graph 预热", crate: "mimic-model / mimic-pipeline", file: "crates/mimic-model/src/lib.rs", shape: "显存约 2.5 GB / 套", io: { i: "模型目录 + OnnxRuntime（进程唯一环境）。", o: "Stages（各 trait 对象）+ StreamGeometry。", r: "加载期录制 CUDA Graph，不能与其他线程的 CUDA 调用并发（库内有锁，使用方要\"先全部加载、再开始跑\"）。", n: "实时链路。" } },
+  ],
+};
+
+const system = {
+  title: "实时系统：线程、多路与队列（以 MimickingLab 为例，使用方可照搬）",
+  lanes: ["host", "pipe", "onnx"],
+  note: "每张卡一个线程一个 Runner；同一张卡上各路顺序执行，一轮耗时 = 各路之和，必须小于块周期：A4000 240 ms 块最多 4 路，两卡 8 路。慢活（CAM++ 嵌入、文件 IO、日志）不进推理线程。",
+  chain: [
+    { id: "cap", lane: "host", label: "采集回调线程", meta: "cpal / WASAPI · 只搬样本进无锁环", crate: "MimickingLab audio.rs", file: "MimickingLab/crates/mimic-lab/src/audio.rs", shape: "设备采样率帧", io: { i: "麦克风。", o: "输入环。", r: "回调里不分配、不加锁、不打日志；数据不连续只计数（采集过载）。", n: "引擎线程。" } },
+    { id: "eng", lane: "host", label: "引擎线程", meta: "重采样 16 kHz · 攒块 · 广播各路 · 收集输出", crate: "MimickingLab engine.rs", file: "MimickingLab/crates/mimic-lab/src/engine.rs", shape: "一块 / 周期", io: { i: "输入环、命令通道（加载 / 换参考 / 门控 / 路数）。", o: "每周期一块发给每张卡的工作线程；收回监听那一路的输出。", r: "节拍的主人：指标快照、队列控制器、文件回放也在这里。", n: "每卡工作线程。" } },
+    { fork: [
+      { label: "GPU 0 工作线程", chain: [
+        { id: "w0", lane: "onnx", label: "Runner（GPU 0）", meta: "Session 1 → 2 → … 顺序 push", crate: "MimickingLab pool.rs → mimic-pipeline::Runner", file: "MimickingLab/crates/mimic-lab/src/pool.rs", shape: "每路一块 ≈ 30 ms", io: { i: "同一块输入，N 个 Session。", o: "N 路输出（只有监听的一路进扬声器）。", r: "各路独立的窗口、SOLA、门、噪声种子、提示；图与设备缓冲全路共享，每路成本不随路数变。", n: "引擎线程。" } },
+      ]},
+      { label: "GPU 1 工作线程（可选）", chain: [
+        { id: "w1", lane: "onnx", label: "Runner（GPU 1）", meta: "路按路号轮转分卡", crate: "MimickingLab pool.rs", file: "MimickingLab/crates/mimic-lab/src/pool.rs", shape: "同上", io: { i: "同一块输入。", o: "它那几路。", r: "多卡 = 多个线程各一个 Runner，不是一个线程轮询。", n: "引擎线程。" } },
+      ]},
+      { label: "旁路线程", chain: [
+        { id: "probe", lane: "host", label: "质量探针 / GPU 监控", meta: "每 5 s CAM++ 余弦 · nvidia-smi 每秒", crate: "MimickingLab engine.rs spawn_probe / spawn_gpu_monitor", file: "MimickingLab/crates/mimic-lab/src/engine.rs", shape: "—", io: { i: "最近 10 s 的输入 / 输出。", o: "像目标余弦、利用率 / 频率 / 温度 / 功耗。", r: "以前在引擎线程上跑，每 5 s 停住几百毫秒，是欠载与延迟上爬的来源；现在独立线程、独立会话。", n: "指标面板。" } },
+      ]},
+    ], join: "输出回到引擎线程" },
+    { id: "q", lane: "host", label: "队列控制器 + 变速级", meta: "误差 e = 队列 − 余量 · 速率 1 + clamp(e/4 s + 慢积分, ±1 %) · 兜底补 / 丢", crate: "MimickingLab engine.rs + resample.rs Varispeed", file: "MimickingLab/crates/mimic-lab/src/engine.rs", shape: "每块一次", io: { i: "推块前的队列深度。", o: "调整后的播放速率；极端时补静音（< 余量 1/4）或丢输入（> 余量 + 2 块）。", r: "时钟漂移 0.25 % 时以前每 30 s 剪一刀 80 ms（结巴）；现在连续吸收，正常使用补 / 丢保持 0。", n: "播放回调线程。" } },
+    { id: "play", lane: "host", label: "播放回调线程", meta: "从输出环取样本 · 空了放静音并计欠载", crate: "MimickingLab audio.rs", file: "MimickingLab/crates/mimic-lab/src/audio.rs", shape: "设备采样率帧", io: { i: "输出环。", o: "扬声器。", r: "余量就是这个环里保持的音频量。", n: "—" } },
+  ],
+};
+
+const milestones = [
+  { tag: "调研", num: "199 ms", sub: "PyTorch 流式每块", items: ["bench/（已归档）：tiny DiT 单步 14.2 ms，其中 CPU 下发 2619 个算子 13.95 ms；CUDA Graph 回放 3.6 ms", "结论：瓶颈是 Python 调度，不是算力；方案定为 ORT + CUDA Graph"] },
+  { tag: "M0–M3", num: "48 ms", sub: "Rust 全链路（0.1.0）", items: ["七张静态 ONNX 图全部落在 CUDA EP；设备驻留绑定 + CUDA Graph；DiT 重写前向发射融合算子（单步 4.95 → 2.10 ms）", "六个 crate、trait 边界、Runner / Session 多路、能量 VAD、mimic stream、manifest、打包、CI", "右前瞻 2.0 s 的套固有延迟 2.3 s → 低延迟套 0.02 s"] },
+  { tag: "1.0", num: "0.635 / 0.524", sub: "英文模型 像目标 / 像源", items: ["MimickingTrain：自写 DiT 与调节器（对拍 3e-7），LibriTTS-R 从零训练 100 k 步", "音色不够像、泄漏偏高 → 去说话人化方案 A–F 对照实验（设计文档 §3–§11）"] },
+  { tag: "2.0", num: "0.700 / 0.432", sub: "2026-10-30，离线 WER 6.7 %", items: ["XLS-R 与调节器之间插入 K=4096 软分配码本，从 1.0 热启动微调 10 k 步", "离线相似度达标；流式却 WER 16.1 %、听感\"拼音味\""] },
+  { tag: "2.0.1", num: "7.6 %", sub: "流式 WER，2026-10-31", items: ["根因：调节器 GroupNorm 的段内统计量；冻成 64 句常数后恢复（排除了右前瞻、窗口特征、DiT 上下文、训练配方）", "Silero VAD 门替代能量门（键盘 / 敲桌 0 开门）；块长 160 / 240 / 320 ms 三套"] },
+  { tag: "正式版", num: "≈ 330 ms", sub: "160 ms 块端到端，2026-11-01", items: ["队列控制器改为播放速率微调吸收时钟漂移；GPU 锁频后余量 50 ms；麦克风电平与 AGC 的注意事项", "release-2.0.md、integration-guide.md、lessons-learned.md、project-tree.html；已知限制：说话时混入敲击声吃字（噪声增强微调待做）、背景人声放行"] },
+];
+
+const latency = `
+<h2 style="font-size:1rem;margin:14px 6px 4px">延时预算（Lab 实测，GPU 锁频）</h2>
+<table class="t"><tr><th>环节</th><th>160 ms 块</th><th>240 ms 块</th><th>怎么省</th></tr>
+<tr><td>攒一块</td><td class="n">160</td><td class="n">240</td><td>更短的套（120 / 80 ms 在 20 ms 格上，未测音质）</td></tr>
+<tr><td>每块计算（A4000，CUDA Graph，单路）</td><td class="n">≈ 30</td><td class="n">≈ 30</td><td>与块长无关；步数 10 → 6 省约 8 ms（未测音质）</td></tr>
+<tr><td>输出余量</td><td class="n">50（锁频）/ 150</td><td class="n">50 / 150</td><td>锁频 + 速率微调</td></tr>
+<tr><td>算法固有（右前瞻 20 + 交叉淡化 40 + SOLA 搜索 20）</td><td class="n">80</td><td class="n">80</td><td>交叉淡化 0.05 → 0.02 s 省 30 ms（未测接缝）</td></tr>
+<tr><td>声卡进出缓冲</td><td class="n">20–40</td><td class="n">20–40</td><td>独占模式 / 更小缓冲</td></tr>
+<tr><td><b>合计</b></td><td class="n"><b>≈ 330–350</b></td><td class="n"><b>≈ 410–430</b></td><td></td></tr></table>
+<h2 style="font-size:1rem;margin:14px 6px 4px">质量（32 对 LibriTTS-R，3 s 提示）</h2>
+<table class="t"><tr><th>套</th><th>口径</th><th>英文模型 像目标 / 像源</th><th>中文模型 像目标</th><th>WER（源 6.3 %）</th></tr>
+<tr><td>2.0（图 2.0.0）</td><td>离线 / 流式</td><td class="n">0.700 / 0.432 · 0.707 / 0.394</td><td class="n">0.870 · 0.878</td><td class="n">6.7 % · 16.1 %</td></tr>
+<tr><td><b>2.0 正式版（图 2.0.1）</b></td><td>离线 / 流式</td><td class="n">0.708 / 0.439 · <b>0.712 / 0.419</b></td><td class="n">0.874 · 0.875</td><td class="n">7.2 % · <b>7.6 %</b></td></tr></table>`;
+
+// ---------------------------------------------------------------- glossary [abbr, full, explanation, where]
+const glossary = [
+  { group: "2.0 正式版特有", items: [
+    ["Mimicking-v2.0", "自训模型套的命名", "调节器与 DiT 为 MimickingTrain 自训权重（1.0 从零 + 2.0 码本微调）。图版本 2.0.1 = 2.0 权重 + 冻结的调节器统计量。", "模型目录"],
+    ["码本 / codebook", "content codebook（内容码本，K=4096）", "XLS-R 帧上的 k-means 质心；推理时每帧换成 softmax(−d²/tau) 加权的质心平均（软分配），音色信息大幅减少。推理必需，导出时烘进两张调节器图。", "码本 + 长度调节"],
+    ["冻结统计量", "frozen GroupNorm statistics（regulator_norm_stats.json）", "调节器 4 个 GroupNorm 的均值方差改用 64 句整句的常数。码本输出近乎常量，按 40 帧段算的统计量乱晃会让 DiT 整段糊掉（流式 WER 16 → 7.6 %）。", "码本 + 长度调节、导出"],
+    ["Silero VAD", "Silero Voice Activity Detector v6（MIT）", "1.2 MB 的递归网络，32 ms 一片给出\"有人说话\"的概率；替代能量门后键盘、敲桌 0 开门，干净语音全召回。只分语音 / 非语音。", "Silero VAD 门"],
+    ["速率微调", "playback-rate steering（变速级 Varispeed）", "队列控制器用 ±1 % 的播放速率变化连续吸收麦克风与扬声器的时钟漂移，代替每 30 s 一次的补静音 / 丢输入。", "队列控制器"],
+    ["算法固有延迟", "algorithmic delay（80 ms）", "右前瞻 20 + 交叉淡化 40 + SOLA 搜索 20 ms；块长不在其中（它在\"攒一块\"里）。端到端 ≈ 块长 + 计算 + 余量 + 80 + 声卡缓冲。", "切输出区、延时预算"],
+    ["像目标 / 像源 / 超地板", "sim_ref / sim_src / excess", "输出与参考、输出与源的 CAM++ 余弦；\"超地板\"= 像源减去 cos(源, 参考) 的自然地板，越小泄漏越少。英文 VoxCeleb 模型与中文模型两套都报。", "质量表"],
+    ["WER", "Word Error Rate（词错误率）", "wav2vec2-base-960h 贪心转写对 LibriTTS-R 文本的编辑距离；离线口径与流式口径分别报，源本身 6.3 %。", "质量表"],
+    ["流式分段模拟", "tools/stream_diag.py --segmented", "在 PyTorch 里按块复现 Rust 会话（窗口、前导零、逐窗归一、分段调节器与 DiT、逐块 HiFT），与 Lab 的 WER 吻合，用来定位和导出前验收。", "导出"],
+  ]},
+  { group: "模型与算法", items: [
+    ["VC", "Voice Conversion（语音转换 / 变声）", "保留说话内容和语调节奏，把音色换成另一个人。zero-shot 指不针对目标说话人训练，只给几秒参考音频。", "整条链路"],
+    ["XLS-R / XLSR", "wav2vec 2.0 XLS-R（3 亿参数，Apache-2.0）", "多语言自监督语音模型，只用前 12 层：16 kHz 进，每 20 ms 一个 1024 维特征。", "XLS-R 节点"],
+    ["DiT", "Diffusion Transformer", "384 维、9 层、6 头、RoPE、SwiGLU、U-ViT 跳连的去噪网络；我们的定义 18.27 M 参数。", "DiT 节点"],
+    ["CFM / 流匹配", "Conditional Flow Matching", "学一个速度场 v(x, t)，从噪声沿常微分方程积分到 t=1。", "DiT"],
+    ["欧拉 / Euler", "Euler ODE solver", "x ← x + dt·v，10 步 dt=0.1。更新与 CFG 合成在融合图内。", "DiT"],
+    ["CFG", "Classifier-Free Guidance（0.7）", "同一步算条件 / 无条件两份速度取 (1+w)·v_c − w·v_u；batch 2 的来源。", "DiT [2,80,328]"],
+    ["U-ViT / RoPE / MHA / RMSNorm / SwiGLU", "DiT 的结构件", "跳连、旋转位置编码、多头注意力、简化层归一化、门控激活；导出图里是 ORT 的融合算子。", "DiT"],
+    ["长度调节器", "LengthRegulator", "Linear 1024→384、最近邻插值 50 → 86 Hz、4 × (Conv3 + GroupNorm(1,384) + Mish)、1×1 Conv。2.0 前面多一个码本、GroupNorm 用冻结常数。", "码本 + 长度调节"],
+    ["GroupNorm", "Group Normalization（这里 1 组）", "按整段的均值方差归一。段内统计量在码本模型上是流式糊字的根因，见\"冻结统计量\"。", "长度调节"],
+    ["CAM++", "CAM++ 说话人验证模型（Apache-2.0）", "Kaldi fbank 进，192 维音色向量出。训练与 Prompt 用中文模型 campplus_cn_common；评测另用英文 VoxCeleb 模型。", "参考提示、质量"],
+    ["HiFT", "HiFi-GAN with iSTFT head（CosyVoice，Apache-2.0）", "f0 预测 → 谐波激励源 → 主体 → 16 点 ISTFT 的声码器；输出 22.05 kHz。", "HiFT 节点"],
+    ["Snake", "Snake activation", "x + sin²(αx)/α；fp16 图里改写成 sign(α)·(sin(αx)·|α|^-½)² 防溢出。", "HiFT 主体"],
+    ["f0", "基频", "每帧的音高，HiFT 用它合成谐波；0 表示清音只给噪声。", "HiFT f0"],
+  ]},
+  { group: "信号处理", items: [
+    ["mel / 梅尔谱", "Mel spectrogram", "22.05 kHz、n_fft 1024、hop 256、80 带、slaney、log(max(x,1e-5))。", "梅尔谱、DiT"],
+    ["fbank", "Kaldi filterbank", "16 kHz、25 / 10 ms、povey 窗、80 带；CAM++ 的输入。", "fbank"],
+    ["sinc 重采样", "windowed-sinc resampling", "torchaudio 同算法，441:320 多相，宽度 6；Lab 的输出级后面再接一个 ±1 % 的三次插值变速级。", "重采样"],
+    ["SOLA", "Synchronous Overlap-Add", "在 ±20 ms 内找与上一块尾部相关最高的滞后，再 40 ms sin² 交叉淡化。", "切输出区"],
+    ["VAD / 门控", "Voice Activity Detection", "判断这块有没有人在说话，决定输出放不放。默认 Silero；能量门（响度 + 自适应地板）只作退路；离线文件不挂门。", "Silero VAD 门"],
+    ["dBFS", "decibels relative to full scale", "数字电平；门的绝对地板 −60 dBFS；麦克风说话电平建议 −25 dBFS 左右。", "门控、麦克风"],
+    ["块 / block", "处理块", "160 / 240 / 320 ms 三套（配置 0.16 / 0.25 / 0.32 s，按 20 ms 格取整）；16 kHz 下 2560 / 3840 / 5120 样本，22.05 kHz 下 3528 / 5292 / 7056。", "输入输出"],
+    ["窗口 / window", "分析窗口", "左上下文 2.5 s + 交叉淡化 0.05 + 搜索 0.02 + 块 + 右前瞻 0.02：240 ms 块 2.82 s = 45120 样本 @16 kHz（140 帧）。", "滚动窗口"],
+    ["右前瞻 / extra_right", "look-ahead（0.02 s）", "输出块后面多听的未来音频；每多 0.1 s 延时多 0.1 s。对 2.0 的可懂度放大无益（实测）。", "滚动窗口"],
+    ["t_cond", "条件帧数（70）", "DiT 为一块生成的声学帧数：240 ms 块 70，160 ms 63，320 ms 77。", "长度调节、DiT"],
+    ["余量 / queue target", "输出队列余量", "推块时扬声器队列里保持的音频量，吸收块耗时抖动：GPU 锁频 50 ms，不锁 150 ms。", "队列控制器"],
+  ]},
+  { group: "推理运行时", items: [
+    ["ONNX / ORT / EP", "Open Neural Network Exchange / ONNX Runtime / Execution Provider", "静态图格式、推理引擎（1.22，运行时加载 dll）、后端（CUDA EP 跑 GPU，CPU EP 跑 Silero）。进程内只有一个 ORT 环境。", "mimic-onnx"],
+    ["CUDA Graph", "CUDA 图捕获 / 回放", "把一次推理的全部核函数录成图整图回放。前提形状固定、地址固定；录制期不能与其他 CUDA 调用并发（库内加锁，使用方先全部加载再开始）。CAM++ 是动态形状，不开。", "GPU 图"],
+    ["设备驻留绑定", "I/O binding", "每张图的输入输出绑定到固定 GPU 缓冲，求解器每步只传标量。", "mimic-onnx::BoundGraph"],
+    ["fp16 / fp32 / TF32", "精度", "DiT 与 HiFT 主体整图 fp16；调节器 fp32（CUDA EP 默认把 fp32 矩阵乘跑成 TF32，码本图对拍 2.7e-3，精确 fp32 6.5e-4）。", "导出、对拍"],
+    ["GPU 降频 / 锁频", "clock down / nvidia-smi -lgc", "单路时 GPU 在块间空闲降频，块耗时 p95 比 p50 高 60 ms；锁频后差 2 ms。", "队列控制器、延时预算"],
+    ["manifest", "manifest.json", "每套图的文件、sha256、几何、来源，2.0 多 content_codebook 与 regulator_norm_stats 字段；mimic models verify 校验，ModelFiles::config() 读几何。", "模型目录"],
+  ]},
+  { group: "工程与指标", items: [
+    ["crate / trait", "Rust 包 / 接口", "mimic-core（trait）、dsp、onnx、pipeline、seedvc、cli；每级一个 trait，模型包与后端可替换。", "泳道"],
+    ["Runner / Session", "运行器 / 会话", "Runner 持全部模型；Session 持一路的状态（窗口、SOLA、门、随机数、Prompt）。一张卡一个 Runner 顺序 push 多个 Session。", "实时系统"],
+    ["p50 / p95", "百分位", "实时系统看 p95；Lab 显示每块与一轮的 p50 / p95 / max。", "Lab"],
+    ["对拍 / 相对 L2", "parity / relative L2", "逐级与 PyTorch 比较 ‖a − b‖ / ‖b‖；Rust 测试对套内夹具，导出器用 tools/export_parity.py 对 PyTorch。", "导出"],
+    ["A4000", "NVIDIA RTX A4000（16 GB）", "所有耗时的测量显卡；每张最多 4 路（240 ms 块）。", "全部"],
+    ["Apache / MIT", "许可", "库代码 Apache-2.0；XLS-R、HiFT、CAM++ Apache-2.0；Silero MIT；2.0 调节器与 DiT 权重自训，仓库不分发权重。", "模型从哪里来"],
+  ]},
+];
+
+// ---------------------------------------------------------------- render
+const VIEWS = { runtime, prompt, build, system };
+const TAB_ORDER = [["runtime","实时链路"],["prompt","参考提示"],["build","模型从哪里来"],["system","实时系统"],["milestones","里程碑与数字"],["glossary","术语表"]];
+const tree = document.getElementById("tree"), detail = document.getElementById("detail"), bar = document.getElementById("bar"), extra = document.getElementById("extra"),
+      tl = document.getElementById("timeline"), note = document.getElementById("note"), title = document.getElementById("title"), legend = document.getElementById("legend"), gloss = document.getElementById("gloss");
+let current = "runtime", active = null, order = [];
+
+function flat(chain, out) { for (const s of chain) { if (s.fork) { for (const b of s.fork) flat(b.chain, out); } else out.push(s); } return out; }
+function nodeEl(n) {
+  const b = document.createElement("button"); b.type = "button"; b.className = "node " + n.lane; b.dataset.id = n.id;
+  b.innerHTML = `<div class="lb">${esc(n.label)}${n.ms != null ? `<span class="ms">${n.ms} ms</span>` : ""}</div><div class="mt">${esc(n.meta || "")}</div><div class="cr">${esc((n.crate || "").split("（")[0])}</div>`;
+  b.onclick = () => select(n.id);
+  return b;
+}
+function arrowEl(label) { const a = document.createElement("div"); a.className = "arrow" + (label ? " lbl" : ""); if (label) a.dataset.l = label; return a; }
+function renderChain(chain, container) {
+  chain.forEach((s, i) => {
+    if (i > 0) container.appendChild(arrowEl(s.fork ? "分叉" : ""));
+    if (s.fork) {
+      const f = document.createElement("div"); f.className = "fork";
+      for (const b of s.fork) { const col = document.createElement("div"); col.className = "branch"; const l = document.createElement("div"); l.className = "bl"; l.textContent = b.label; col.appendChild(l); renderChain(b.chain, col); f.appendChild(col); }
+      container.appendChild(f);
+      if (s.join) { const j = document.createElement("div"); j.className = "join"; j.textContent = "⤓ " + s.join; container.appendChild(j); }
+    } else container.appendChild(nodeEl(s));
+  });
+}
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function show(view) {
+  current = view; active = null;
+  for (const t of document.querySelectorAll(".tab")) t.setAttribute("aria-selected", t.dataset.v === view);
+  tree.innerHTML = ""; extra.innerHTML = ""; bar.hidden = true; tl.hidden = true; gloss.hidden = true; legend.innerHTML = ""; note.textContent = "";
+  if (view === "milestones") { title.textContent = "里程碑与数字"; tl.hidden = false; tl.innerHTML = milestones.map(m => `<div class="ms-card"><div><div class="tag">${esc(m.tag)}</div><div class="num">${esc(m.num)}<br><span>${esc(m.sub)}</span></div></div><ul>${m.items.map(i => `<li>${esc(i)}</li>`).join("")}</ul></div>`).join(""); extra.innerHTML = latency; detail.innerHTML = `<p class="hint">左侧是从调研到正式版的节点与关键数字；下方两张表是延时预算与质量。细节见 docs/release-2.0.md。</p>`; return; }
+  if (view === "glossary") { title.textContent = "术语表"; gloss.hidden = false; drawGlossary(document.getElementById("gloss-q").value); detail.innerHTML = `<p class="hint">缩写、全称、解释与出现位置。第一组是 2.0 正式版新增的概念。</p>`; return; }
+  const v = VIEWS[view]; title.textContent = v.title; note.textContent = v.note || "";
+  legend.innerHTML = v.lanes.map(l => `<span><i class="node ${l}" style="padding:0;width:12px;height:12px;display:inline-block"></i>${esc(LANE_NAMES[l])}</span>`).join("");
+  const c = document.createElement("div"); c.className = "chain"; renderChain(v.chain, c); tree.appendChild(c);
+  order = flat(v.chain, []);
+  const timed = order.filter(n => n.ms != null);
+  if (view === "runtime" && timed.length) {
+    bar.hidden = false; const total = timed.reduce((a, n) => a + n.ms, 0);
+    const colors = { onnx: "#6b86c9", dsp: "#5fa06f", pipe: "#c99a4f", host: "#999" };
+    bar.innerHTML = `<div class="track">${timed.map(n => `<div class="seg" data-id="${n.id}" style="width:${(100 * n.ms / total).toFixed(2)}%;background:${colors[n.lane]}" title="${esc(n.label)} ${n.ms} ms"></div>`).join("")}</div><div class="lg">${timed.map(n => `<span><b>${esc(n.label)}</b> ${n.ms}</span>`).join("")}<span><b>合计</b> ≈ ${total.toFixed(1)} ms / 块（周期 240 ms；Lab 实测 total 32 ms，含门 1 ms 与主机拷贝）</span></div>`;
+    bar.querySelectorAll(".seg").forEach(s => s.onclick = () => select(s.dataset.id));
+  }
+  detail.innerHTML = `<p class="hint">点一张卡片。<kbd>↑</kbd> <kbd>↓</kbd> 沿链路移动。</p>`;
+  if (location.hash.length > 1) { const id = decodeURIComponent(location.hash.slice(1)); if (order.some(n => n.id === id)) select(id); }
+}
+function select(id) {
+  const n = order.find(x => x.id === id); if (!n) return; active = id; location.hash = id;
+  document.querySelectorAll(".node").forEach(e => e.classList.toggle("active", e.dataset.id === id));
+  document.querySelectorAll(".seg").forEach(e => e.classList.toggle("active", e.dataset.id === id));
+  const io = n.io || {};
+  detail.innerHTML = `<h3>${esc(n.label)}</h3><span class="crate">${esc(LANE_NAMES[n.lane])}</span>
+    <dl class="io">${io.i ? `<dt>输入</dt><dd>${esc(io.i)}</dd>` : ""}${io.o ? `<dt>输出</dt><dd>${esc(io.o)}</dd>` : ""}${io.r ? `<dt>作用</dt><dd>${esc(io.r)}</dd>` : ""}${io.n ? `<dt>去向</dt><dd>${esc(io.n)}</dd>` : ""}</dl>
+    <dl>${n.shape ? `<dt>形状</dt><dd>${esc(n.shape)}</dd>` : ""}${n.ms != null ? `<dt>耗时</dt><dd>${n.ms} ms</dd>` : ""}<dt>实现</dt><dd>${esc(n.crate || "")}</dd><dt>文件</dt><dd>${esc(n.file || "")}</dd></dl>`;
+  const el = document.querySelector(`.node[data-id="${id}"]`); if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+document.addEventListener("keydown", e => { if (!active || !order.length) return; const i = order.findIndex(n => n.id === active); if (e.key === "ArrowDown" && i < order.length - 1) select(order[i + 1].id); if (e.key === "ArrowUp" && i > 0) select(order[i - 1].id); });
+function drawGlossary(q) {
+  const list = document.getElementById("gloss-list"); const needle = (q || "").trim().toLowerCase(); list.innerHTML = ""; let shown = 0;
+  for (const g of glossary) {
+    const rows = g.items.filter(r => !needle || r.join(" ").toLowerCase().includes(needle)); if (!rows.length) continue; shown += rows.length;
+    const h = document.createElement("h4"); h.textContent = g.group; list.appendChild(h);
+    const t = document.createElement("table"); t.innerHTML = rows.map(([a, f, e, w]) => `<tr><td>${esc(a)}</td><td>${esc(f)}</td><td>${esc(e)}<div class="where">见：${esc(w)}</div></td></tr>`).join(""); list.appendChild(t);
+  }
+  if (!shown) list.innerHTML = `<div class="note">没有匹配的术语。</div>`;
+}
+document.getElementById("gloss-q").addEventListener("input", e => drawGlossary(e.target.value));
+const tabs = document.getElementById("tabs");
+for (const [v, name] of TAB_ORDER) { const b = document.createElement("button"); b.className = "tab"; b.role = "tab"; b.dataset.v = v; b.textContent = name; b.onclick = () => show(v); tabs.appendChild(b); }
+show("runtime");
+</script>
+</body>
+</html>

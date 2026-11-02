@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mimicking Pipeline Flow</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: tab strip, a vertical tree (top-to-bottom chain of stage cards, parallel branches side by side), detail panel on the right (stacks below on phones) */
+:root {
+  --bg: #f5f6f4; --panel: #ffffff; --fg: #1b2420; --muted: #5d6a64; --line: #d6dcd8; --accent: #0e6f6b; --accent-soft: #d9ecea; --hot: #c2552a;
+  --lane-dsp: #e8efe7; --lane-onnx: #e5eaf3; --lane-pipe: #f3eadc; --lane-tool: #efe6ee; --lane-host: #ece9e1;
+  --font-display: "Manrope", "Segoe UI", system-ui, sans-serif; --font-mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#121715; --panel:#1a211e; --fg:#e6ebe8; --muted:#9aa8a1; --line:#2d3732; --accent:#5fc3bd; --accent-soft:#19403d; --hot:#e8865e;
+  --lane-dsp:#1b2a21; --lane-onnx:#1b2130; --lane-pipe:#2b2518; --lane-tool:#2a1f2a; --lane-host:#24231d; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg:#121715; --panel:#1a211e; --fg:#e6ebe8; --muted:#9aa8a1; --line:#2d3732; --accent:#5fc3bd; --accent-soft:#19403d; --hot:#e8865e;
+  --lane-dsp:#1b2a21; --lane-onnx:#1b2130; --lane-pipe:#2b2518; --lane-tool:#2a1f2a; --lane-host:#24231d; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-display); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px; }
+h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+.sub { color: var(--muted); margin: 4px 0 16px; max-width: 80ch; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.tab { border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 999px; padding: 6px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.wrap > * { min-width: 0; }
+@media (max-width: 960px) { .wrap { grid-template-columns: 1fr; } }
+.stage { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; padding: 14px 12px 6px; }
+.stage h2 { font-size: 1.05rem; margin: 0 6px 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 6px 12px; font: 400 12px var(--font-mono); color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); }
+/* vertical tree */
+.chain { display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; }
+.node { width: min(100%, 300px); background: var(--panel); border: 1.2px solid var(--line); border-radius: 9px; padding: 8px 12px; cursor: pointer; text-align: left; transition: border-color .15s; }
+.node:hover, .node.active { border-color: var(--accent); border-width: 2px; padding: 7px 11px; }
+.node.active { background: var(--accent-soft); }
+.node.dsp { background: var(--lane-dsp); } .node.onnx { background: var(--lane-onnx); } .node.pipe { background: var(--lane-pipe); } .node.tool { background: var(--lane-tool); } .node.host { background: var(--lane-host); }
+.node.active.dsp, .node.active.onnx, .node.active.pipe, .node.active.tool, .node.active.host { background: var(--accent-soft); }
+.node .lb { font-weight: 700; font-size: 13.5px; }
+.node .mt { font: 400 11.5px var(--font-mono); color: var(--muted); margin-top: 1px; overflow-wrap: anywhere; }
+.node .ms { font: 500 11px var(--font-mono); color: var(--hot); margin-left: 6px; }
+.node .cr { font: 500 10.5px var(--font-mono); color: var(--accent); margin-top: 2px; }
+.arrow { width: 2px; height: 18px; background: var(--muted); opacity: .6; position: relative; }
+.arrow::after { content: ""; position: absolute; left: -4px; bottom: -1px; border: 5px solid transparent; border-top: 7px solid var(--muted); opacity: .9; }
+.arrow.lbl::before { content: attr(data-l); position: absolute; left: 10px; top: 0; font: 400 10.5px var(--font-mono); color: var(--muted); white-space: nowrap; }
+.fork { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 18px; width: 100%; padding: 6px 4px; border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); margin: 2px 0; }
+.branch { display: flex; flex-direction: column; align-items: center; flex: 1 1 240px; max-width: 320px; min-width: 200px; }
+.branch .bl { font: 600 11px var(--font-display); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 4px; }
+.join { font: 400 11px var(--font-mono); color: var(--muted); margin: 2px 0; }
+/* detail */
+.detail { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; position: sticky; top: 8px; min-width: 0; }
+.detail h3 { font-size: 1.05rem; margin: 0 0 2px; }
+.detail .crate { display: inline-block; font: 500 11px var(--font-mono); color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 1px 6px; margin-bottom: 8px; }
+.detail dl { display: grid; grid-template-columns: 5.5em 1fr; gap: 4px 10px; margin: 8px 0; }
+.detail dt { color: var(--muted); font-size: 12px; }
+.detail dd { margin: 0; font-family: var(--font-mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.detail p { margin: 8px 0 0; font-size: 13.5px; }
+.detail .hint { color: var(--muted); font-size: 13px; }
+.detail dl.io { grid-template-columns: 3em 1fr; gap: 6px 10px; margin: 10px 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.detail dl.io dt { font-weight: 600; color: var(--accent); }
+.detail dl.io dd { font-family: inherit; font-size: 13.5px; line-height: 1.45; }
+/* timing bar */
+.bar { margin: 12px 6px 10px; }
+.bar .track { display: flex; height: 22px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+.bar .seg { height: 100%; min-width: 2px; cursor: pointer; opacity: .85; }
+.bar .seg:hover, .bar .seg.active { opacity: 1; outline: 2px solid var(--hot); outline-offset: -2px; }
+.bar .lg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font: 400 12px var(--font-mono); color: var(--muted); }
+.bar .lg b { color: var(--fg); font-weight: 500; }
+/* tables, milestones, glossary */
+table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 8px 0 14px; }
+table.t th, table.t td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+table.t th { color: var(--muted); font-weight: 600; font-size: 12px; }
+table.t td.n { font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
+.timeline { display: grid; gap: 10px; padding: 6px; }
+.ms-card { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--panel); display: grid; grid-template-columns: 5.5em 1fr; gap: 4px 12px; }
+.ms-card .tag { font: 800 14px var(--font-display); color: var(--accent); }
+.ms-card .num { font: 500 12px var(--font-mono); color: var(--hot); }
+.ms-card .num span { color: var(--muted); }
+.ms-card ul { margin: 4px 0 0; padding-left: 18px; font-size: 13.5px; }
+.note { font-size: 12.5px; color: var(--muted); padding: 6px 6px 8px; }
+.gloss { padding: 6px; }
+.gloss input { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); margin-bottom: 12px; }
+.gloss h4 { font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 16px 0 6px; }
+.gloss table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.gloss td { vertical-align: top; padding: 7px 8px; border-top: 1px solid var(--line); }
+.gloss td:first-child { white-space: nowrap; font-weight: 800; width: 7em; }
+.gloss td:nth-child(2) { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); width: 15em; overflow-wrap: anywhere; }
+.gloss .where { color: var(--muted); font-size: 12.5px; }
+@media (max-width: 700px) { .gloss td:first-child, .gloss td:nth-child(2) { width: auto; } .gloss tr { display: grid; grid-template-columns: 1fr; border-top: 1px solid var(--line); padding: 6px 0; } .gloss td { border-top: none; padding: 2px 8px; } }
+kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="lang-switch" style="font:13px/1.4 system-ui,sans-serif;opacity:.75;margin:0 0 10px">English | <a href="pipeline-flow.zh-CN.html">中文</a></div>
+<h1>Mimicking pipeline flow</h1>
+<p class="sub">2.0 official release (2026-11-01). Read top to bottom: each card is one processing stage; branches side by side are paths that run at the same time and then merge. Click a card to see its input, output, role, destination, shape, timing and source file. Timings are Lab measurements on an RTX A4000 with CUDA Graph, single stream, 240 ms block, 10 steps, CFG 0.7.</p>
+<div class="tabs" role="tablist" id="tabs"></div>
+<div class="wrap">
+  <div>
+    <div class="stage">
+      <h2 id="title"></h2>
+      <div class="legend" id="legend"></div>
+      <div id="tree"></div>
+      <div class="bar" id="bar" hidden></div>
+      <div id="extra"></div>
+      <div class="timeline" id="timeline" hidden></div>
+      <div class="gloss" id="gloss" hidden><input id="gloss-q" type="search" placeholder="Search abbreviations, full names or explanations, e.g. CFG, codebook, Silero, rate steering"><div id="gloss-list"></div></div>
+      <div class="note" id="note"></div>
+    </div>
+  </div>
+  <aside class="detail" id="detail" aria-live="polite"><p class="hint">Click a card. <kbd>↑</kbd> <kbd>↓</kbd> move along the main chain.</p></aside>
+</div>
+<script>
+// ---------------------------------------------------------------- data
+// A view is a chain: a list of steps; a step is a node, or {fork:[{label, chain:[...]}, ...], join:"join description"}.
+// node: {id, lane, label, meta, ms, crate, file, shape, io:{i,o,r,n}}; lanes: pipe (Rust pipeline) dsp (pure Rust DSP) onnx (GPU graphs) host (integrating application / Lab) tool (Python tools)
+const LANE_NAMES = { pipe: "mimic-pipeline (Rust)", dsp: "mimic-dsp (pure Rust signal processing)", onnx: "ONNX graphs (GPU, CUDA Graph)", host: "integrating application / test bench thread", tool: "Python tools / training" };
+
+const runtime = {
+  title: "Real-time chain: how one 240 ms input block becomes one output block (Mimicking-v2.0-lowlat, graph 2.0.1)",
+  lanes: ["host", "pipe", "dsp", "onnx"],
+  note: "One block = 3840 samples in at 16 kHz, 5292 samples out at 22.05 kHz. 160 ms set: 2560 in / 3528 out, window 2.74 s, 36 content frames → 63 condition frames, sequence 321; the compute per block is almost unchanged (about 30 ms), the blocks just arrive more often. Gating runs in parallel with the model: while the gate is closed the model still runs (the window must stay continuous), only the output is faded to zero.",
+  chain: [
+    { id: "mic", lane: "host", label: "Microphone / file", meta: "device sample rate → 16 kHz mono, collect one full block", crate: "integrating application (Lab: engine.rs capture thread + StreamResampler)", file: "MimickingLab/crates/mimic-lab/src/engine.rs", shape: "f32[3840] @16 kHz",
+      io: { i: "Audio at the device sample rate delivered by the sound-card callback (Lab: WASAPI shared mode, 48 kHz).", o: "16 kHz mono block, 3840 samples = 240 ms (2560 for the 160 ms set).", r: "The cadence unit of the whole chain: nothing can be computed until a full block is collected, so the block length itself is the first item of latency.", n: "Runner::push(&mut session, &block16). On capture overflow, drop rather than accumulate; the microphone's automatic gain / noise suppression must be off (AGC pulls the gain down for seconds after a loud knock)." } },
+    { fork: [
+      { label: "Gating branch (CPU, parallel with the model)", chain: [
+        { id: "vad", lane: "onnx", label: "Silero VAD gate", meta: "silero_vad.onnx · CPU · 64-sample context + 512-sample chunks", ms: 1.0, crate: "mimic-onnx::SileroVad (implements mimic-core::Vad)", file: "crates/mimic-onnx/src/vad.rs · models/vad/silero_vad.onnx", shape: "f32[3840] → 7 chunk probabilities → 0 / 1",
+          io: { i: "The current input block. Cut into 512-sample chunks, each prefixed with the last 64 samples of the previous chunk; the recurrent state (2,1,128) is carried along.", o: "Gate value 0 / 1 for this block: any chunk probability > 0.5 opens the gate; all chunks < 0.35 for 2 consecutive blocks closes it; block level < −60 dBFS is silence outright.", r: "The diffusion model \"makes up speech\" when there is no voice; the gate squashes the output to silence during voiceless stretches. Silero recognises speech itself: keyboard typing, desk tapping and page turning do not open it (real recordings 0/144, 0/179 blocks), clean speech is fully recalled, onset delay 0–160 ms. Other people's speech is let through by design.", n: "The decision enters the Session's gating queue, aligned by the algorithmic delay to the output block it belongs to (0 blocks of delay for the low-latency set), and acts in \"cut output region + SOLA + gating\". The energy gate EnergyVad is only a fallback when the model is missing (it cannot tell typing from speech). Offline file conversion has no gate attached." } },
+      ]},
+      { label: "Model main path", chain: [
+        { id: "win", lane: "pipe", label: "Rolling window 2.82 s", meta: "left context 2.5 s | crossfade 0.05 | search 0.02 | block 0.24 | right context 0.02", crate: "mimic-pipeline::Session", file: "crates/mimic-pipeline/src/lib.rs", shape: "f32[45120] @16 kHz",
+          io: { i: "The new block of 3840 samples.", o: "The whole window of 45120 samples (2.82 s): shift left by one block, append the new block at the end; the window is all zeros at session start.", r: "Gives the content encoder 2.5 s of left context and 0.02 s of right context. The right context is part of the algorithmic delay (enlarging it to 0.1 s does not help 2.0's intelligibility; measured).", n: "XLS-R, unconditionally." } },
+        { id: "xlsr", lane: "onnx", label: "XLS-R content encoding", meta: "xlsr.onnx · layers 1–12 · per-window normalisation · 140 frames @50 Hz", ms: 4.5, crate: "mimic-model::XlsrEncoder", file: "models/…/xlsr.onnx (329 MB, Apache-2.0, hard-linked across the sets that share the same window geometry)", shape: "[1,45120] → [1,140,1024]",
+          io: { i: "The whole 16 kHz window waveform; the graph first normalises mean and variance per window.", o: "[1,140,1024]: one 1024-dimensional content feature per 20 ms frame.", r: "The \"stenographer\": encodes what was said into vectors only weakly tied to the speaker. An attention model, so every frame is influenced by the window content, and the streaming window's features differ slightly from the whole sentence (raw cosine 0.91); after the codebook the difference is erased (0.998).", n: "Drop the first 100 frames." } },
+        { id: "cut", lane: "pipe", label: "Drop first 100 frames → 40 frames", meta: "(2.5 − 0.5) s × 50 Hz serves XLS-R only", crate: "mimic-pipeline::Runner", file: "crates/mimic-pipeline/src/lib.rs", shape: "[1,140,1024] → [1,40,1024]",
+          io: { i: "140 content frames.", o: "The last 40 frames (0.5 s left context + block + crossfade + right context ≈ 0.8 s).", r: "The content encoder needs 2.5 s of left context to be stable; the DiT only needs 0.5 s.", n: "Length regulation (with codebook)." } },
+        { id: "lr", lane: "onnx", label: "Codebook + length regulation", meta: "length_regulator.onnx · fp32 · K=4096 soft assignment · GroupNorm uses frozen constants", ms: 0.7, crate: "mimic-model::InterpolateRegulator (in-graph: codebook MatMul+Softmax+MatMul → Linear → interpolation → 4×(Conv3+GN+Mish) → 1×1)", file: "models/Mimicking-v2.0-*/length_regulator.onnx (exported by MimickingTrain, --train-config bakes in the codebook, --norm-stats freezes the statistics)", shape: "[1,40,1024] → [1,70,384]",
+          io: { i: "40 frames of raw XLS-R features.", o: "[1,70,384]: condition sequence at the 86 Hz acoustic frame rate (unique to 2.0: first the 4096-centroid soft-assignment codebook removes speaker identity, then regulation).", r: "The core change of 2.0. Codebook: each frame is replaced by the softmax(−d²/tau)-weighted average of centroids, greatly reducing timbre information (speaker probe 86 % → 37 %); this is the source of \"more like the target, less leakage\". GroupNorm: the codebook output is nearly constant (variance of the first conv layer's output 0.0095), so statistics computed over a 40-frame segment swing wildly and the DiT smears the whole segment (streaming WER 16 %); graph 2.0.1 freezes the mean and variance of the 4 GroupNorms into constants from 64 sentences (streaming 7.6 %).", n: "Concatenate prompt condition." } },
+        { id: "cat", lane: "pipe", label: "Concatenate prompt condition", meta: "258 prompt frames + 70 block frames = 328", crate: "mimic-pipeline::Runner", file: "crates/mimic-pipeline/src/lib.rs", shape: "mu [1,328,384]",
+          io: { i: "Prompt.cond [1,258,384] (the reference audio's condition, computed once per voice) + this block [1,70,384].", o: "mu [1,328,384].", r: "Lets the DiT see \"how the reference speaks\" and \"what is being said now\" at the same time.", n: "DiT." } },
+        { id: "dit", lane: "onnx", label: "DiT flow matching ×10 steps", meta: "dit_step_fused.onnx · fp16 fused operators · 2.0 ms/step · batch 2 (CFG 0.7)", ms: 20.2, crate: "mimic-model::DitStepFused + mimic-pipeline::EulerCfg", file: "models/Mimicking-v2.0-*/dit_step_fused.onnx (37 MB, self-trained weights)", shape: "[2,80,328] × (x, prompt_x, mu, style, t, dt, cfg) → x_next [1,80,328]",
+          io: { i: "mu; prompt_x (first 258 frames = reference mel spectrogram, rest 0); style [1,192]; noise z (the Session's StdRng, fixed seed); scalars t, dt, cfg.", o: "x [1,80,328]: the first 258 frames are the reference backfill, the last 70 frames are the mel spectrogram newly generated for this block.", r: "10 Euler steps starting from noise; each step computes the conditional / unconditional velocities and combines them at CFG 0.7. 384-dimensional, 9 layers, 6 heads, RoPE, SwiGLU, U-ViT skip connections, 18.27 M parameters (our definition; the original definition has 7.4 M parameters unused in the forward pass). x stays resident on the device; each step only transfers t / dt / cfg.", n: "Cut out block mel spectrogram. As long as the regulator supplies whole-sentence-grade conditions, the short 70-frame context is no problem for the DiT (whole-sentence regulator + blockwise DiT WER 7.9 %)." } },
+        { id: "slice", lane: "pipe", label: "Cut out block mel spectrogram", meta: "remove the 258 prompt frames", crate: "mimic-pipeline::Runner", file: "crates/mimic-pipeline/src/lib.rs", shape: "[1,80,328] → [1,80,70]",
+          io: { i: "DiT output.", o: "[1,80,70]: this block's spectrogram (0.81 s).", r: "The reference backfill is only a demonstration for the DiT; it is not output.", n: "Sent to two places at once: ① HiFT f0 prediction (find the pitch → excitation source); ② HiFT body (the body needs both the mel spectrogram and the excitation spectrum)." } },
+        { fork: [
+          { label: "Excitation source branch", chain: [
+            { id: "f0", lane: "onnx", label: "HiFT f0 prediction", meta: "hift_f0.onnx", ms: 0.8, crate: "mimic-model::HiftVocoder", file: "models/…/hift_f0.onnx (Apache-2.0)", shape: "[1,80,70] → [1,70] Hz", io: { i: "Block mel spectrogram.", o: "Fundamental frequency per frame, 0 for unvoiced frames.", r: "A source-filter vocoder needs to know the pitch of every frame.", n: "Harmonic excitation source." } },
+            { id: "src", lane: "dsp", label: "Harmonic excitation source", meta: "9 harmonics + noise, phase-continuous", ms: 0.6, crate: "mimic-dsp::hift::harmonic_source", file: "crates/mimic-dsp/src/hift.rs", shape: "[1,70] → [1,17920] @22.05 kHz", io: { i: "f0.", o: "Excitation waveform, 70 × 256 = 17920 samples.", r: "Frames with f0 > 0 = sum of 9 harmonic sines + noise; frames with f0 = 0 = pure noise.", n: "16-point STFT." } },
+            { id: "stft", lane: "dsp", label: "16-point STFT", meta: "hop 4 · DFT matrix multiply", ms: 0.4, crate: "mimic-dsp::hift::stft_small", file: "crates/mimic-dsp/src/hift.rs", shape: "[1,17920] → [1,18,4481]", io: { i: "Excitation waveform.", o: "Small STFT with 9 real + 9 imaginary channels.", r: "The HiFT body fuses the excitation in the spectral domain.", n: "HiFT body." } },
+          ]},
+          { label: "Spectrogram pass-through", chain: [
+            { id: "melpass", lane: "pipe", label: "Block mel spectrogram", meta: "[1,80,70] sent straight to the body", crate: "mimic-pipeline::Runner", file: "crates/mimic-pipeline/src/lib.rs", shape: "[1,80,70]", io: { i: "The cut-out block mel spectrogram.", o: "Unchanged.", r: "The body's first input.", n: "HiFT body." } },
+          ]},
+        ], join: "Both paths feed the HiFT body" },
+        { id: "body", lane: "onnx", label: "HiFT body", meta: "hift_body.onnx · fp16 · overflow-safe Snake", ms: 3.3, crate: "mimic-model::HiftVocoder", file: "models/…/hift_body.onnx (35 MB, Apache-2.0)", shape: "[1,80,70] + [1,18,4481] → [1,18,4481]",
+          io: { i: "Block mel spectrogram + excitation spectrum.", o: "9 channels of log magnitude + 9 channels of phase.", r: "conv_pre → two ×8 upsampling stages with excitation fusion → 3 groups of Snake residual blocks → conv_post.", n: "ISTFT." } },
+        { id: "istft", lane: "dsp", label: "ISTFT + limiter", meta: "exp / sin → overlap-add → ±0.99", ms: 1.0, crate: "mimic-dsp::hift::istft_from_body", file: "crates/mimic-dsp/src/hift.rs", shape: "[1,18,4481] → [1,17920]",
+          io: { i: "Magnitude / phase spectra.", o: "17920 samples of 22.05 kHz waveform (the sound of the whole 0.81 s condition region).", r: "Spectrum → waveform.", n: "Cut output region + SOLA + gating." } },
+      ]},
+    ], join: "Gate value and waveform merge at the output stage" },
+    { id: "out", lane: "pipe", label: "Cut output region + SOLA + gating", meta: "take the last 6615 samples (minus the 441 right context) · ±441 search · 882 crossfade · gate 0/1 + 40 ms ramp", ms: 0.3, crate: "mimic-pipeline::Runner + mimic-dsp::Sola", file: "crates/mimic-dsp/src/sola.rs", shape: "[1,17920] + previous block tail → f32[5292] @22.05 kHz",
+      io: { i: "The whole condition-region waveform + the previous block's tail (882 samples) + the gate value aligned to this block.", o: "5292 samples (240 ms). Gate = 0 → the whole block is zeroed; gate just flipped → 40 ms ramp at the start of the block.", r: "Take the 0.30 s corresponding to this block from the end of the condition region (minus the 0.02 s right context), find within ±20 ms the lag with the highest correlation to the previous block's tail, then sin² crossfade, removing the phase jump at the block boundary. Algorithmic delay = right context 441 + crossfade 882 + search 441 = 1764 samples = 80 ms (block length not included; it sits in \"collect a block\").", n: "The integrating application's output resampling and speaker queue." } },
+    { id: "spk", lane: "host", label: "Output resampling + queue controller → speaker", meta: "22.05 kHz → device sample rate · margin 50–150 ms · playback-rate steering ±1 %", crate: "integrating application (Lab: engine.rs queue controller + resample.rs Varispeed + audio.rs callback)", file: "MimickingLab/crates/mimic-lab/src/engine.rs", shape: "f32[5292] → device sample rate → ring queue",
+      io: { i: "5292 samples per block.", o: "A continuous stream consumed by the sound-card callback at the device's cadence.", r: "Production arrives block by block, consumption is continuous; a margin in between absorbs jitter in per-block compute time (50 ms is enough with the GPU clocks locked, 150 ms unlocked). Microphone and speaker crystals typically differ by 0.1–0.3 %, so the queue drifts a few milliseconds per second: absorbed continuously by ±1 % playback-rate steering (inaudible); padding with silence / dropping input is only a backstop for real stalls.", n: "Latency budget (160 ms block): collect block 160 + compute ~30 + margin 50 + algorithmic 80 + sound card 20–40 ≈ 330–350 ms; a 240 ms block adds 80 ms." } },
+  ],
+};
+
+const prompt = {
+  title: "Reference prompt: computed once per voice (about 350 ms), then reused for every block",
+  lanes: ["host", "pipe", "dsp", "onnx"],
+  note: "The reference only determines timbre; a longer reference still uses only the first 3 s. Switch voice with Session::set_prompt; the window and SOLA state are kept, no seam. CAM++ is the only dynamic-shape graph and does not use CUDA Graph, so compute it on a separate thread and then switch.",
+  chain: [
+    { id: "ref", lane: "host", label: "Reference audio 3 s", meta: "22.05 kHz, truncated / zero-padded to 66150", crate: "Stages::prepare_prompt", file: "crates/mimic-pipeline/src/lib.rs", shape: "f32[66150]", io: { i: "Reference wav at any sample rate (the integrating application reads it and resamples to 22.05 kHz).", o: "Fixed length of 3 s.", r: "The common starting point of the three branches.", n: "Sent at the same time to: ① resample → 16 kHz (content and timbre branches); ② mel spectrogram." } },
+    { fork: [
+      { label: "Content condition", chain: [
+        { id: "rs", lane: "dsp", label: "Resample → 16 kHz", meta: "441:320 polyphase sinc, width 6", crate: "mimic-dsp::SincResampler", file: "crates/mimic-dsp/src/resample.rs", shape: "f32[48000]", io: { i: "66150 @22.05 kHz.", o: "48000 @16 kHz.", r: "XLS-R and CAM++ both take 16 kHz.", n: "XLS-R (reference length) and fbank." } },
+        { id: "xr", lane: "onnx", label: "XLS-R (reference length)", meta: "xlsr_ref.onnx", crate: "mimic-model::XlsrEncoder", file: "models/…/xlsr_ref.onnx", shape: "[1,48000] → [1,149,1024]", io: { i: "16 kHz reference.", o: "149 content frames.", r: "What the reference \"said\".", n: "Reference-length regulator." } },
+        { id: "lrr", lane: "onnx", label: "Codebook + length regulation (→258)", meta: "length_regulator_ref.onnx · codebook and frozen statistics baked in likewise", crate: "mimic-model::InterpolateRegulator", file: "models/Mimicking-v2.0-*/length_regulator_ref.onnx", shape: "[1,149,1024] → [1,258,384]", io: { i: "149 frames.", o: "Prompt.cond [1,258,384].", r: "The same module as in the real-time chain, in another static shape; the codebook and GroupNorm constants are likewise inside the graph.", n: "Prompt." } },
+      ]},
+      { label: "Timbre vector", chain: [
+        { id: "fb", lane: "dsp", label: "Kaldi fbank", meta: "25 / 10 ms · povey · 80 bins · mean removal", crate: "mimic-dsp::KaldiFbank", file: "crates/mimic-dsp/src/fbank.rs", shape: "[T,80]", io: { i: "16 kHz reference.", o: "fbank features.", r: "Input to CAM++.", n: "CAM++." } },
+        { id: "cam", lane: "onnx", label: "CAM++ timbre vector", meta: "campplus.onnx · dynamic shape · Chinese model campplus_cn_common", crate: "mimic-model::CampplusSpeaker", file: "models/…/campplus.onnx (Apache-2.0)", shape: "[1,T,80] → [1,192]", io: { i: "fbank.", o: "Prompt.style, 192-dimensional.", r: "The DiT treats it as one token. 2.x plans to switch to an English model; evaluation additionally uses an English VoxCeleb model (ref/sv_en) as a second yardstick.", n: "Prompt." } },
+      ]},
+      { label: "Spectrogram demonstration", chain: [
+        { id: "mel", lane: "dsp", label: "Mel spectrogram", meta: "1024 / 256 / 80 · slaney · log", crate: "mimic-dsp::MelSpec", file: "crates/mimic-dsp/src/mel.rs", shape: "[80,258]", io: { i: "22.05 kHz reference.", o: "Prompt.mel.", r: "The DiT's prompt_x: when generating this block, the first 258 frames hold the reference's real spectrogram as a demonstration.", n: "Prompt." } },
+      ]},
+    ], join: "Three paths merge into one Prompt" },
+    { id: "pr", lane: "pipe", label: "Prompt", meta: "cond + mel + style", crate: "mimic-core::Prompt", file: "crates/mimic-core/src/lib.rs", shape: "[1,258,384] · [1,80,258] · [1,192]", io: { i: "The outputs of the three branches.", o: "A cacheable, hot-swappable Prompt object.", r: "\"Concatenate prompt condition\" in the real-time chain takes cond; the DiT takes mel and style.", n: "Session::new / set_prompt." } },
+  ],
+};
+
+const build = {
+  title: "Where the models come from: self-trained weights (2.0 official release)",
+  lanes: ["tool", "onnx", "pipe"],
+  note: "Sets are exported as a whole by MimickingTrain: the regulator and DiT from the self-trained weights, XLS-R / CAM++ / HiFT directly from the Apache weights in ref/models; the Rust runtime loads by the directory's manifest.",
+  chain: [
+    { fork: [
+      { label: "Self-trained weights (MimickingTrain)", chain: [
+        { id: "data", lane: "tool", label: "Data and feature cache", meta: "LibriTTS-R train-clean-100/360/other-500 · mel + CAM++ cache · timbre perturbation", crate: "mimictrain.data", file: "MimickingTrain/mimictrain/data/ · C:/MimickingData/cache", shape: "int16 waveform + fp16 mel + 192-dimensional style", io: { i: "OpenSLR 141 (CC BY 4.0).", o: "Sharded cache and manifests.", r: "The training input; perturbation (pitch ±8 semitones, formants ±35 %, EQ, gain) forces the model to learn timbre from the reference.", n: "1.0 training." } },
+        { id: "v1", lane: "tool", label: "1.0: trained from scratch for 100 k steps", meta: "train_tiny_sp.json · two A4000s with DDP", crate: "mimictrain.train", file: "MimickingTrain/runs/Mimicking-v1.0", shape: "ema.safetensors (dit.* 18.27 M + regulator.* 2.32 M = 20.6 M)", io: { i: "Feature cache + frozen XLS-R L12.", o: "1.0 weights: English model similarity to target 0.635 / to source 0.524: timbre not close enough, leakage on the high side.", r: "Our DiT and regulator definitions (parity with the original modules 3e-7) have their own weights for the first time.", n: "Codebook + 2.0 fine-tune." } },
+        { id: "cb", lane: "tool", label: "Content codebook K=4096", meta: "tools/content_gate.py fit · k-means on XLS-R L12 frames", crate: "mimictrain.codebook", file: "C:/MimickingData/codebooks/xlsr12_k4096.safetensors", shape: "centroids 4096×1024 + tau", io: { i: "Training-set XLS-R frames.", o: "The codebook (required for inference, travels with the weights).", r: "After soft-assignment backfill the speaker probe drops 86 % → 37 % while the content probe stays at 91 %: an information bottleneck that removes speaker identity.", n: "2.0 fine-tune (training also passes through it)." } },
+        { id: "v2", lane: "tool", label: "2.0: warm-start fine-tune for 10 k steps", meta: "ft_vq4096.json · lr 5e-5 cosine · 4 h 06", crate: "mimictrain.train", file: "MimickingTrain/runs/Mimicking-v2.0 (RELEASE.md)", shape: "ema.safetensors + codebook + regulator_norm_stats.json", io: { i: "1.0 EMA + codebook.", o: "2.0 weights: English model 0.700 / 0.432, offline WER 6.7 %.", r: "Similarity plateaus after 2 500 steps; frozen at step 10 000 (an attempt to continue to 30 k was stopped at step 11 400).", n: "Export. Statistics: tools/stream_diag.py --compute-stats 64 → GroupNorm mean and variance over 64 whole sentences." } },
+        { id: "exp", lane: "tool", label: "mimictrain.export (whole set, self-sufficient)", meta: "--train-config bakes in the codebook · --norm-stats freezes the statistics · --shared from-weights exports XLS-R / CAM++ / HiFT · 2.0.1", crate: "mimictrain.export", file: "MimickingTrain/mimictrain/export/", shape: "dit_step(.fused) fp16 fused + length_regulator(.ref) fp32 + xlsr* / campplus / hift_* + manifest + fixtures/", io: { i: "Weights, codebook, statistics, block length / right context / prompt length; hift.pt and campplus_cn_common.bin from ref/models, XLS-R by its HF name.", o: "One set of 10 files + manifest (content_codebook, regulator_norm_stats, provenance) + Rust parity fixtures.", r: "One set per block length; rounded to the 20 ms grid (0.25 → 240 ms); after export, check that all graph I/O is fp32.", n: "Parity with tools/export_parity.py (ORT against PyTorch: regulator 6.5e-4, DiT fused graph 3.4e-4); before exporting, reproduce the streaming WER with stream_diag.py --segmented." } },
+      ]},
+    ], join: "All written to Mimicking/models/<set>/" },
+    { id: "g", lane: "onnx", label: "models/ model directory", meta: "Mimicking-v2.0-lowlat (default) · -b0.16 · -b0.32 · vad/", crate: "mimic-model::ModelFiles / Manifest", file: "models/", shape: "10 files per set + manifest.json", io: { i: "Export artefacts.", o: "mimic models verify checks the sha256; ModelFiles::config() reads the geometry back.", r: "One directory per geometry; changing block length = switching directory and reloading (the Lab's block-length radio groups the sets into families by manifest name + right context).", n: "ModelSet::load." } },
+    { id: "load", lane: "pipe", label: "ModelSet::load → Stages → Runner", meta: "one Runner per card · start only after everything is loaded · CUDA Graph warm-up", crate: "mimic-model / mimic-pipeline", file: "crates/mimic-model/src/lib.rs", shape: "about 2.5 GB of GPU memory per set", io: { i: "Model directory + OnnxRuntime (one environment per process).", o: "Stages (the trait objects) + StreamGeometry.", r: "CUDA Graphs are captured during loading and must not run concurrently with CUDA calls from other threads (the library has a lock; the integrating application should \"load everything first, then start running\").", n: "Real-time chain." } },
+  ],
+};
+
+const system = {
+  title: "Real-time system: threads, multiple streams and queues (MimickingLab as the example; integrators can copy it)",
+  lanes: ["host", "pipe", "onnx"],
+  note: "One thread and one Runner per card; the streams on the same card execute in sequence, one round = the sum of the streams, and it must be shorter than the block period: at most 4 streams per A4000 with 240 ms blocks, 8 on two cards. Slow work (CAM++ embedding, file IO, logging) stays out of the inference thread.",
+  chain: [
+    { id: "cap", lane: "host", label: "Capture callback thread", meta: "cpal / WASAPI · only moves samples into a lock-free ring", crate: "MimickingLab audio.rs", file: "MimickingLab/crates/mimic-lab/src/audio.rs", shape: "device-rate frames", io: { i: "Microphone.", o: "Input ring.", r: "No allocation, no locks, no logging inside the callback; discontinuous data is only counted (capture overload).", n: "Engine thread." } },
+    { id: "eng", lane: "host", label: "Engine thread", meta: "resample to 16 kHz · collect blocks · broadcast to the streams · collect output", crate: "MimickingLab engine.rs", file: "MimickingLab/crates/mimic-lab/src/engine.rs", shape: "one block / period", io: { i: "Input ring, command channel (load / change reference / gating / stream count).", o: "One block per period sent to each card's worker thread; the output of the monitored stream collected back.", r: "Owner of the cadence: metric snapshots, the queue controller and file playback also live here.", n: "Per-card worker threads." } },
+    { fork: [
+      { label: "GPU 0 worker thread", chain: [
+        { id: "w0", lane: "onnx", label: "Runner (GPU 0)", meta: "Session 1 → 2 → … pushed in sequence", crate: "MimickingLab pool.rs → mimic-pipeline::Runner", file: "MimickingLab/crates/mimic-lab/src/pool.rs", shape: "≈ 30 ms per stream per block", io: { i: "The same input block, N Sessions.", o: "N stream outputs (only the monitored one goes to the speaker).", r: "Each stream has its own window, SOLA, gate, noise seed and prompt; the graphs and device buffers are shared by all streams, so the per-stream cost does not change with the stream count.", n: "Engine thread." } },
+      ]},
+      { label: "GPU 1 worker thread (optional)", chain: [
+        { id: "w1", lane: "onnx", label: "Runner (GPU 1)", meta: "streams assigned to cards round-robin by stream number", crate: "MimickingLab pool.rs", file: "MimickingLab/crates/mimic-lab/src/pool.rs", shape: "as above", io: { i: "The same input block.", o: "Its share of the streams.", r: "Multiple cards = multiple threads with one Runner each, not one thread polling.", n: "Engine thread." } },
+      ]},
+      { label: "Side threads", chain: [
+        { id: "probe", lane: "host", label: "Quality probe / GPU monitor", meta: "CAM++ cosine every 5 s · nvidia-smi every second", crate: "MimickingLab engine.rs spawn_probe / spawn_gpu_monitor", file: "MimickingLab/crates/mimic-lab/src/engine.rs", shape: "—", io: { i: "The last 10 s of input / output.", o: "Similarity-to-target cosine, utilisation / clock / temperature / power.", r: "Used to run on the engine thread, stalling it for a few hundred milliseconds every 5 s, the source of underruns and creeping latency; now a separate thread and a separate session.", n: "Metrics panel." } },
+      ]},
+    ], join: "Output returns to the engine thread" },
+    { id: "q", lane: "host", label: "Queue controller + varispeed stage", meta: "error e = queue − margin · rate 1 + clamp(e/4 s + slow integral, ±1 %) · backstop pad / drop", crate: "MimickingLab engine.rs + resample.rs Varispeed", file: "MimickingLab/crates/mimic-lab/src/engine.rs", shape: "once per block", io: { i: "Queue depth before pushing the block.", o: "The adjusted playback rate; in extremes pad with silence (< margin/4) or drop input (> margin + 2 blocks).", r: "With 0.25 % clock drift it used to cut 80 ms every 30 s (stutter); now absorbed continuously, pad / drop stays at 0 in normal use.", n: "Playback callback thread." } },
+    { id: "play", lane: "host", label: "Playback callback thread", meta: "takes samples from the output ring · plays silence and counts an underrun when empty", crate: "MimickingLab audio.rs", file: "MimickingLab/crates/mimic-lab/src/audio.rs", shape: "device-rate frames", io: { i: "Output ring.", o: "Speaker.", r: "The margin is simply the amount of audio kept in this ring.", n: "—" } },
+  ],
+};
+
+const milestones = [
+  { tag: "Research", num: "199 ms", sub: "PyTorch streaming, per block", items: ["bench/ (archived): tiny DiT single step 14.2 ms, of which CPU dispatch of 2619 operators 13.95 ms; CUDA Graph replay 3.6 ms", "Conclusion: the bottleneck is Python scheduling, not compute; approach fixed as ORT + CUDA Graph"] },
+  { tag: "M0–M3", num: "48 ms", sub: "full chain in Rust (0.1.0)", items: ["All seven static ONNX graphs on the CUDA EP; device-resident binding + CUDA Graph; DiT forward rewritten to emit fused operators (single step 4.95 → 2.10 ms)", "Six crates, trait boundaries, Runner / Session multi-stream, energy VAD, mimic stream, manifest, packaging, CI", "Algorithmic delay of the 2.0 s right-context set 2.3 s → low-latency set 0.02 s"] },
+  { tag: "1.0", num: "0.635 / 0.524", sub: "English model, similarity to target / to source", items: ["MimickingTrain: our own DiT and regulator (parity 3e-7), trained from scratch on LibriTTS-R for 100 k steps", "Timbre not close enough, leakage on the high side → despeaker approaches A–F compared in controlled experiments (design doc §3–§11)"] },
+  { tag: "2.0", num: "0.700 / 0.432", sub: "2026-10-30, offline WER 6.7 %", items: ["K=4096 soft-assignment codebook inserted between XLS-R and the regulator, warm-start fine-tune from 1.0 for 10 k steps", "Offline similarity on target; yet streaming WER 16.1 % and a \"pinyin-like\" sound"] },
+  { tag: "2.0.1", num: "7.6 %", sub: "streaming WER, 2026-10-31", items: ["Root cause: the regulator GroupNorm's in-segment statistics; recovered after freezing them into constants from 64 sentences (right context, window features, DiT context and training recipe ruled out)", "Silero VAD gate replaces the energy gate (keyboard / desk tapping: 0 gate openings); three sets with block lengths 160 / 240 / 320 ms"] },
+  { tag: "Release", num: "≈ 330 ms", sub: "end to end with 160 ms blocks, 2026-11-01", items: ["Queue controller switched to playback-rate steering to absorb clock drift; margin 50 ms with the GPU clocks locked; notes on microphone level and AGC", "release-2.0.md, integration-guide.md, lessons-learned.md, project-tree.html; known limitations: knocks mixed into speech eat words (noise-augmented fine-tune pending), background voices let through"] },
+];
+
+const latency = `
+<h2 style="font-size:1rem;margin:14px 6px 4px">Latency budget (Lab measurements, GPU clocks locked)</h2>
+<table class="t"><tr><th>Stage</th><th>160 ms block</th><th>240 ms block</th><th>How to save</th></tr>
+<tr><td>Collect a block</td><td class="n">160</td><td class="n">240</td><td>Shorter sets (120 / 80 ms are on the 20 ms grid, audio quality untested)</td></tr>
+<tr><td>Compute per block (A4000, CUDA Graph, single stream)</td><td class="n">≈ 30</td><td class="n">≈ 30</td><td>Independent of block length; steps 10 → 6 saves about 8 ms (audio quality untested)</td></tr>
+<tr><td>Output margin</td><td class="n">50 (clocks locked) / 150</td><td class="n">50 / 150</td><td>Lock the clocks + rate steering</td></tr>
+<tr><td>Algorithmic (right context 20 + crossfade 40 + SOLA search 20)</td><td class="n">80</td><td class="n">80</td><td>Crossfade 0.05 → 0.02 s saves 30 ms (seams untested)</td></tr>
+<tr><td>Sound-card in/out buffers</td><td class="n">20–40</td><td class="n">20–40</td><td>Exclusive mode / smaller buffers</td></tr>
+<tr><td><b>Total</b></td><td class="n"><b>≈ 330–350</b></td><td class="n"><b>≈ 410–430</b></td><td></td></tr></table>
+<h2 style="font-size:1rem;margin:14px 6px 4px">Quality (32 pairs from LibriTTS-R, 3 s prompt)</h2>
+<table class="t"><tr><th>Set</th><th>Mode</th><th>English model, similarity to target / to source</th><th>Chinese model, similarity to target</th><th>WER (source 6.3 %)</th></tr>
+<tr><td>2.0 (graph 2.0.0)</td><td>offline / streaming</td><td class="n">0.700 / 0.432 · 0.707 / 0.394</td><td class="n">0.870 · 0.878</td><td class="n">6.7 % · 16.1 %</td></tr>
+<tr><td><b>2.0 official release (graph 2.0.1)</b></td><td>offline / streaming</td><td class="n">0.708 / 0.439 · <b>0.712 / 0.419</b></td><td class="n">0.874 · 0.875</td><td class="n">7.2 % · <b>7.6 %</b></td></tr></table>`;
+
+// ---------------------------------------------------------------- glossary [abbr, full, explanation, where]
+const glossary = [
+  { group: "Specific to the 2.0 official release", items: [
+    ["Mimicking-v2.0", "naming of the self-trained model sets", "The regulator and DiT are MimickingTrain self-trained weights (1.0 from scratch + 2.0 codebook fine-tune). Graph version 2.0.1 = 2.0 weights + frozen regulator statistics.", "Model directory"],
+    ["Codebook", "content codebook (K=4096)", "k-means centroids on XLS-R frames; at inference each frame is replaced by the softmax(−d²/tau)-weighted average of centroids (soft assignment), greatly reducing timbre information. Required for inference; baked into both regulator graphs at export.", "Codebook + length regulation"],
+    ["Frozen statistics", "frozen GroupNorm statistics (regulator_norm_stats.json)", "The mean and variance of the regulator's 4 GroupNorms become constants from 64 whole sentences. The codebook output is nearly constant; statistics computed over a 40-frame segment swing wildly and make the DiT smear the whole segment (streaming WER 16 → 7.6 %).", "Codebook + length regulation, Export"],
+    ["Silero VAD", "Silero Voice Activity Detector v6 (MIT)", "A 1.2 MB recurrent network that gives a \"someone is speaking\" probability per 32 ms chunk; after it replaced the energy gate, keyboard and desk tapping open the gate 0 times and clean speech is fully recalled. Only distinguishes speech / non-speech.", "Silero VAD gate"],
+    ["Rate steering", "playback-rate steering (Varispeed stage)", "The queue controller uses ±1 % playback-rate changes to absorb the clock drift between microphone and speaker continuously, instead of padding with silence / dropping input every 30 s.", "Queue controller"],
+    ["Algorithmic delay", "algorithmic delay (80 ms)", "Right context 20 + crossfade 40 + SOLA search 20 ms; the block length is not part of it (it sits in \"collect a block\"). End to end ≈ block length + compute + margin + 80 + sound-card buffers.", "Cut output region, Latency budget"],
+    ["Similarity to target / to source / excess over floor", "sim_ref / sim_src / excess", "CAM++ cosine of output vs reference and of output vs source; \"excess over floor\" = similarity to source minus the natural floor cos(source, reference); the smaller, the less leakage. Reported for both the English VoxCeleb model and the Chinese model.", "Quality table"],
+    ["WER", "Word Error Rate", "Edit distance of a wav2vec2-base-960h greedy transcript against the LibriTTS-R text; the offline and streaming modes are reported separately; the source itself is 6.3 %.", "Quality table"],
+    ["Streaming segment simulation", "tools/stream_diag.py --segmented", "Reproduces the Rust session block by block in PyTorch (window, leading zeros, per-window normalisation, segmented regulator and DiT, blockwise HiFT); matches the Lab's WER; used for diagnosis and pre-export acceptance.", "Export"],
+  ]},
+  { group: "Models and algorithms", items: [
+    ["VC", "Voice Conversion", "Keeps the spoken content, intonation and rhythm and swaps the timbre for another person's. Zero-shot means no training for the target speaker, only a few seconds of reference audio.", "The whole chain"],
+    ["XLS-R / XLSR", "wav2vec 2.0 XLS-R (300 M parameters, Apache-2.0)", "Multilingual self-supervised speech model, only the first 12 layers used: 16 kHz in, one 1024-dimensional feature every 20 ms.", "XLS-R node"],
+    ["DiT", "Diffusion Transformer", "Denoising network, 384-dimensional, 9 layers, 6 heads, RoPE, SwiGLU, U-ViT skip connections; 18.27 M parameters in our definition.", "DiT node"],
+    ["CFM / flow matching", "Conditional Flow Matching", "Learns a velocity field v(x, t) and integrates the ordinary differential equation from noise to t=1.", "DiT"],
+    ["Euler", "Euler ODE solver", "x ← x + dt·v, 10 steps with dt=0.1. The update and the CFG combination are inside the fused graph.", "DiT"],
+    ["CFG", "Classifier-Free Guidance (0.7)", "Computes the conditional / unconditional velocities in the same step and takes (1+w)·v_c − w·v_u; the reason for batch 2.", "DiT [2,80,328]"],
+    ["U-ViT / RoPE / MHA / RMSNorm / SwiGLU", "building blocks of the DiT", "Skip connections, rotary position embedding, multi-head attention, simplified layer normalisation, gated activation; in the exported graph they are ORT fused operators.", "DiT"],
+    ["Length regulator", "LengthRegulator", "Linear 1024→384, nearest-neighbour interpolation 50 → 86 Hz, 4 × (Conv3 + GroupNorm(1,384) + Mish), 1×1 Conv. In 2.0 a codebook precedes it and GroupNorm uses frozen constants.", "Codebook + length regulation"],
+    ["GroupNorm", "Group Normalization (1 group here)", "Normalises by the mean and variance of the whole segment. In-segment statistics are the root cause of streaming smearing on the codebook model, see \"Frozen statistics\".", "Length regulation"],
+    ["CAM++", "CAM++ speaker verification model (Apache-2.0)", "Kaldi fbank in, 192-dimensional timbre vector out. Training and the Prompt use the Chinese model campplus_cn_common; evaluation additionally uses an English VoxCeleb model.", "Reference prompt, Quality"],
+    ["HiFT", "HiFi-GAN with iSTFT head (CosyVoice, Apache-2.0)", "Vocoder: f0 prediction → harmonic excitation source → body → 16-point ISTFT; outputs 22.05 kHz.", "HiFT nodes"],
+    ["Snake", "Snake activation", "x + sin²(αx)/α; rewritten in the fp16 graph as sign(α)·(sin(αx)·|α|^-½)² to prevent overflow.", "HiFT body"],
+    ["f0", "fundamental frequency", "The pitch of each frame; HiFT uses it to synthesise the harmonics; 0 means unvoiced, noise only.", "HiFT f0"],
+  ]},
+  { group: "Signal processing", items: [
+    ["mel / mel spectrogram", "Mel spectrogram", "22.05 kHz, n_fft 1024, hop 256, 80 bands, slaney, log(max(x,1e-5)).", "Mel spectrogram, DiT"],
+    ["fbank", "Kaldi filterbank", "16 kHz, 25 / 10 ms, povey window, 80 bands; the input to CAM++.", "fbank"],
+    ["sinc resampling", "windowed-sinc resampling", "Same algorithm as torchaudio, 441:320 polyphase, width 6; the Lab's output stage is followed by a ±1 % cubic-interpolation varispeed stage.", "Resampling"],
+    ["SOLA", "Synchronous Overlap-Add", "Finds within ±20 ms the lag with the highest correlation to the previous block's tail, then a 40 ms sin² crossfade.", "Cut output region"],
+    ["VAD / gating", "Voice Activity Detection", "Decides whether anyone is speaking in this block and whether to let the output through. Silero by default; the energy gate (loudness + adaptive floor) is only a fallback; offline files have no gate.", "Silero VAD gate"],
+    ["dBFS", "decibels relative to full scale", "Digital level; the gate's absolute floor is −60 dBFS; recommended microphone speech level around −25 dBFS.", "Gating, Microphone"],
+    ["Block", "processing block", "Three sets of 160 / 240 / 320 ms (configured 0.16 / 0.25 / 0.32 s, rounded to the 20 ms grid); 2560 / 3840 / 5120 samples at 16 kHz, 3528 / 5292 / 7056 at 22.05 kHz.", "Input and output"],
+    ["Window", "analysis window", "Left context 2.5 s + crossfade 0.05 + search 0.02 + block + right context 0.02: 2.82 s for a 240 ms block = 45120 samples @16 kHz (140 frames).", "Rolling window"],
+    ["Right context / extra_right", "look-ahead (0.02 s)", "Future audio heard beyond the output block; every extra 0.1 s adds 0.1 s of latency. Enlarging it does not help 2.0's intelligibility (measured).", "Rolling window"],
+    ["t_cond", "number of condition frames (70)", "The acoustic frames the DiT generates for one block: 70 for a 240 ms block, 63 for 160 ms, 77 for 320 ms.", "Length regulation, DiT"],
+    ["Margin / queue target", "output queue margin", "The amount of audio kept in the speaker queue when a block is pushed, absorbing jitter in per-block compute time: 50 ms with the GPU clocks locked, 150 ms unlocked.", "Queue controller"],
+  ]},
+  { group: "Inference runtime", items: [
+    ["ONNX / ORT / EP", "Open Neural Network Exchange / ONNX Runtime / Execution Provider", "Static graph format, inference engine (1.22, DLLs loaded at runtime), backend (the CUDA EP runs the GPU, the CPU EP runs Silero). Only one ORT environment per process.", "mimic-onnx"],
+    ["CUDA Graph", "CUDA graph capture / replay", "Records all kernels of one inference as a graph and replays the whole graph. Requires fixed shapes and fixed addresses; capture must not run concurrently with other CUDA calls (the library locks; the integrating application loads everything first, then starts). CAM++ has dynamic shapes and does not use it.", "GPU graphs"],
+    ["Device-resident binding", "I/O binding", "Each graph's inputs and outputs are bound to fixed GPU buffers; the solver transfers only scalars per step.", "mimic-onnx::BoundGraph"],
+    ["fp16 / fp32 / TF32", "precision", "DiT and HiFT body are whole-graph fp16; the regulator is fp32 (the CUDA EP runs fp32 matrix multiplies as TF32 by default: codebook graph parity 2.7e-3, exact fp32 6.5e-4).", "Export, Parity"],
+    ["GPU downclocking / clock locking", "clock down / nvidia-smi -lgc", "With a single stream the GPU downclocks while idle between blocks and the per-block p95 is 60 ms above p50; with the clocks locked the gap is 2 ms.", "Queue controller, Latency budget"],
+    ["manifest", "manifest.json", "Each set's files, sha256, geometry and provenance; 2.0 adds the content_codebook and regulator_norm_stats fields; mimic models verify checks it, ModelFiles::config() reads the geometry.", "Model directory"],
+  ]},
+  { group: "Engineering and metrics", items: [
+    ["crate / trait", "Rust package / interface", "mimic-core (traits), dsp, onnx, pipeline, seedvc, cli; one trait per stage, so model packages and backends are replaceable.", "Lanes"],
+    ["Runner / Session", "runner / session", "The Runner holds all the models; a Session holds one stream's state (window, SOLA, gate, RNG, Prompt). One Runner per card pushes several Sessions in sequence.", "Real-time system"],
+    ["p50 / p95", "percentiles", "Real-time systems look at p95; the Lab shows p50 / p95 / max per block and per round.", "Lab"],
+    ["Parity / relative L2", "parity / relative L2", "Stage-by-stage comparison with PyTorch, ‖a − b‖ / ‖b‖; the Rust tests against the fixtures in the set, the exporter with tools/export_parity.py against PyTorch.", "Export"],
+    ["A4000", "NVIDIA RTX A4000 (16 GB)", "The graphics card for all timing measurements; at most 4 streams per card (240 ms block).", "Everywhere"],
+    ["Apache / MIT", "licences", "Library code Apache-2.0; XLS-R, HiFT, CAM++ Apache-2.0; Silero MIT; the 2.0 regulator and DiT weights are self-trained; the repository distributes no weights.", "Where the models come from"],
+  ]},
+];
+
+// ---------------------------------------------------------------- render
+const VIEWS = { runtime, prompt, build, system };
+const TAB_ORDER = [["runtime","Real-time chain"],["prompt","Reference prompt"],["build","Where the models come from"],["system","Real-time system"],["milestones","Milestones and numbers"],["glossary","Glossary"]];
+const tree = document.getElementById("tree"), detail = document.getElementById("detail"), bar = document.getElementById("bar"), extra = document.getElementById("extra"),
+      tl = document.getElementById("timeline"), note = document.getElementById("note"), title = document.getElementById("title"), legend = document.getElementById("legend"), gloss = document.getElementById("gloss");
+let current = "runtime", active = null, order = [];
+
+function flat(chain, out) { for (const s of chain) { if (s.fork) { for (const b of s.fork) flat(b.chain, out); } else out.push(s); } return out; }
+function nodeEl(n) {
+  const b = document.createElement("button"); b.type = "button"; b.className = "node " + n.lane; b.dataset.id = n.id;
+  b.innerHTML = `<div class="lb">${esc(n.label)}${n.ms != null ? `<span class="ms">${n.ms} ms</span>` : ""}</div><div class="mt">${esc(n.meta || "")}</div><div class="cr">${esc((n.crate || "").split(" (")[0])}</div>`;
+  b.onclick = () => select(n.id);
+  return b;
+}
+function arrowEl(label) { const a = document.createElement("div"); a.className = "arrow" + (label ? " lbl" : ""); if (label) a.dataset.l = label; return a; }
+function renderChain(chain, container) {
+  chain.forEach((s, i) => {
+    if (i > 0) container.appendChild(arrowEl(s.fork ? "fork" : ""));
+    if (s.fork) {
+      const f = document.createElement("div"); f.className = "fork";
+      for (const b of s.fork) { const col = document.createElement("div"); col.className = "branch"; const l = document.createElement("div"); l.className = "bl"; l.textContent = b.label; col.appendChild(l); renderChain(b.chain, col); f.appendChild(col); }
+      container.appendChild(f);
+      if (s.join) { const j = document.createElement("div"); j.className = "join"; j.textContent = "⤓ " + s.join; container.appendChild(j); }
+    } else container.appendChild(nodeEl(s));
+  });
+}
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function show(view) {
+  current = view; active = null;
+  for (const t of document.querySelectorAll(".tab")) t.setAttribute("aria-selected", t.dataset.v === view);
+  tree.innerHTML = ""; extra.innerHTML = ""; bar.hidden = true; tl.hidden = true; gloss.hidden = true; legend.innerHTML = ""; note.textContent = "";
+  if (view === "milestones") { title.textContent = "Milestones and numbers"; tl.hidden = false; tl.innerHTML = milestones.map(m => `<div class="ms-card"><div><div class="tag">${esc(m.tag)}</div><div class="num">${esc(m.num)}<br><span>${esc(m.sub)}</span></div></div><ul>${m.items.map(i => `<li>${esc(i)}</li>`).join("")}</ul></div>`).join(""); extra.innerHTML = latency; detail.innerHTML = `<p class="hint">On the left: the nodes and key numbers from research to the official release; the two tables below are the latency budget and quality. Details in docs/release-2.0.md.</p>`; return; }
+  if (view === "glossary") { title.textContent = "Glossary"; gloss.hidden = false; drawGlossary(document.getElementById("gloss-q").value); detail.innerHTML = `<p class="hint">Abbreviations, full names, explanations and where they appear. The first group is the concepts new in the 2.0 official release.</p>`; return; }
+  const v = VIEWS[view]; title.textContent = v.title; note.textContent = v.note || "";
+  legend.innerHTML = v.lanes.map(l => `<span><i class="node ${l}" style="padding:0;width:12px;height:12px;display:inline-block"></i>${esc(LANE_NAMES[l])}</span>`).join("");
+  const c = document.createElement("div"); c.className = "chain"; renderChain(v.chain, c); tree.appendChild(c);
+  order = flat(v.chain, []);
+  const timed = order.filter(n => n.ms != null);
+  if (view === "runtime" && timed.length) {
+    bar.hidden = false; const total = timed.reduce((a, n) => a + n.ms, 0);
+    const colors = { onnx: "#6b86c9", dsp: "#5fa06f", pipe: "#c99a4f", host: "#999" };
+    bar.innerHTML = `<div class="track">${timed.map(n => `<div class="seg" data-id="${n.id}" style="width:${(100 * n.ms / total).toFixed(2)}%;background:${colors[n.lane]}" title="${esc(n.label)} ${n.ms} ms"></div>`).join("")}</div><div class="lg">${timed.map(n => `<span><b>${esc(n.label)}</b> ${n.ms}</span>`).join("")}<span><b>Total</b> ≈ ${total.toFixed(1)} ms / block (period 240 ms; Lab measured total 32 ms, including gate 1 ms and host copies)</span></div>`;
+    bar.querySelectorAll(".seg").forEach(s => s.onclick = () => select(s.dataset.id));
+  }
+  detail.innerHTML = `<p class="hint">Click a card. <kbd>↑</kbd> <kbd>↓</kbd> move along the chain.</p>`;
+  if (location.hash.length > 1) { const id = decodeURIComponent(location.hash.slice(1)); if (order.some(n => n.id === id)) select(id); }
+}
+function select(id) {
+  const n = order.find(x => x.id === id); if (!n) return; active = id; location.hash = id;
+  document.querySelectorAll(".node").forEach(e => e.classList.toggle("active", e.dataset.id === id));
+  document.querySelectorAll(".seg").forEach(e => e.classList.toggle("active", e.dataset.id === id));
+  const io = n.io || {};
+  detail.innerHTML = `<h3>${esc(n.label)}</h3><span class="crate">${esc(LANE_NAMES[n.lane])}</span>
+    <dl class="io">${io.i ? `<dt>In</dt><dd>${esc(io.i)}</dd>` : ""}${io.o ? `<dt>Out</dt><dd>${esc(io.o)}</dd>` : ""}${io.r ? `<dt>Role</dt><dd>${esc(io.r)}</dd>` : ""}${io.n ? `<dt>Next</dt><dd>${esc(io.n)}</dd>` : ""}</dl>
+    <dl>${n.shape ? `<dt>Shape</dt><dd>${esc(n.shape)}</dd>` : ""}${n.ms != null ? `<dt>Time</dt><dd>${n.ms} ms</dd>` : ""}<dt>Code</dt><dd>${esc(n.crate || "")}</dd><dt>File</dt><dd>${esc(n.file || "")}</dd></dl>`;
+  const el = document.querySelector(`.node[data-id="${id}"]`); if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+document.addEventListener("keydown", e => { if (!active || !order.length) return; const i = order.findIndex(n => n.id === active); if (e.key === "ArrowDown" && i < order.length - 1) select(order[i + 1].id); if (e.key === "ArrowUp" && i > 0) select(order[i - 1].id); });
+function drawGlossary(q) {
+  const list = document.getElementById("gloss-list"); const needle = (q || "").trim().toLowerCase(); list.innerHTML = ""; let shown = 0;
+  for (const g of glossary) {
+    const rows = g.items.filter(r => !needle || r.join(" ").toLowerCase().includes(needle)); if (!rows.length) continue; shown += rows.length;
+    const h = document.createElement("h4"); h.textContent = g.group; list.appendChild(h);
+    const t = document.createElement("table"); t.innerHTML = rows.map(([a, f, e, w]) => `<tr><td>${esc(a)}</td><td>${esc(f)}</td><td>${esc(e)}<div class="where">See: ${esc(w)}</div></td></tr>`).join(""); list.appendChild(t);
+  }
+  if (!shown) list.innerHTML = `<div class="note">No matching terms.</div>`;
+}
+document.getElementById("gloss-q").addEventListener("input", e => drawGlossary(e.target.value));
+const tabs = document.getElementById("tabs");
+for (const [v, name] of TAB_ORDER) { const b = document.createElement("button"); b.className = "tab"; b.role = "tab"; b.dataset.v = v; b.textContent = name; b.onclick = () => show(v); tabs.appendChild(b); }
+show("runtime");
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+[package]
+name = "mimic-pipeline"
+description = "Composes Mimicking stage traits into an offline converter and a streaming session"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mimic-core.workspace = true
+mimic-dsp.workspace = true
+ndarray.workspace = true
+rand.workspace = true
+tracing.workspace = true

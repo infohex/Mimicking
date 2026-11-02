@@ -1,0 +1,14 @@
+[package]
+name = "mimic-onnx"
+description = "ONNX Runtime backend for Mimicking: fixed-shape graphs on the CUDA execution provider"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mimic-core.workspace = true
+ndarray.workspace = true
+ort.workspace = true
+tracing.workspace = true
+# host<->device copies into ORT-owned device buffers (ort has no copy API); cudart loaded at runtime from PATH
+cudarc = { version = "0.19", default-features = false, features = ["std", "runtime", "cuda-12040", "dynamic-loading"] }

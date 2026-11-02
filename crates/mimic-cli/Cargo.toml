@@ -1,0 +1,24 @@
+[package]
+name = "mimic-cli"
+description = "Command-line front end for Mimicking: file-to-file conversion and measurement"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "mimic"
+path = "src/main.rs"
+
+[dependencies]
+mimic-core.workspace = true
+mimic-dsp.workspace = true
+mimic-onnx.workspace = true
+mimic-model.workspace = true
+mimic-pipeline.workspace = true
+ndarray.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+hound.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

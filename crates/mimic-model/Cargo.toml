@@ -1,0 +1,21 @@
+[package]
+name = "mimic-model"
+description = "Model package: seed-vc tiny (XLSR + DiT flow matching + HiFT) implemented over Mimicking's stage traits"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mimic-core.workspace = true
+mimic-dsp.workspace = true
+mimic-onnx.workspace = true
+mimic-pipeline.workspace = true
+sha2.workspace = true
+ndarray.workspace = true
+ndarray-npy.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
