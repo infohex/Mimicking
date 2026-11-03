@@ -2,6 +2,15 @@
 
 # Changelog
 
+## 未发布
+
+- `Session::roll`（2026-11-03）：让流式会话跨过一个安静块而不跑模型（分析窗、门状态与对齐队列、求解噪声照常推进；清 SOLA
+  尾巴、门记为关），给自己有空闲判定的接入方用：空闲的流不花 GPU，下一次 `push` 从静音淡入且左上下文是真实的。随之加了
+  `Session::window16()` 和 `rolled` 计数；调用方法见接入指南 §6。测试：`crates/mimic-pipeline/tests/roll.rs`（状态，不需模型）和
+  `crates/mimic-model/tests/roll.rs`（真实图上 push / roll / push 对比连续 push，带门与不带门、短暂停与超过窗口的暂停；
+  roll 过的会话与连续会话的距离和同种子重跑一样近）。顺带看到：不挂门时，整窗纯静音会让 2.0 模型发出低电平的胡言（约
+  −27 dBFS），是门的清零把它盖住的——规则 10 保持挂门的又一个理由。
+
 ## 2.0 — 2026-11-01
 
 **Mimicking 2.0 正式版。** 生成器换成自训权重（`Mimicking-v2.0`，图版本 2.0.1），默认套 `models/Mimicking-v2.0-lowlat`，另有

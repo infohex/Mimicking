@@ -12,7 +12,7 @@ Rust 实时零样本变声库，库优先、模块化（每级一个 trait）。
 4. ORT 线程池不自旋（已在 `OnnxGraph::load` 设置），不要去掉。
 5. 图是静态形状：几何只从模型目录的 manifest 读，不在代码里写死；改配置 = 重新导出一套到新目录。
 6. 慢活（嵌入、IO、子进程）不进推理线程。
-7. VAD 决策按算法延迟对齐到输出块。
+7. VAD 决策按算法延迟对齐到输出块（`Session::roll` 跨过的静音块同样把决策入队）。
 8. 码本模型（2.0 起）的导出必须带 `--norm-stats`（调节器 GroupNorm 统计量冻成整句常数）；导出前先用 MimickingTrain
    `tools/stream_diag.py --segmented` 复现流式 WER，离线 WER 不代表流式。自训套整套由 `mimictrain.export` 导出（XLS-R / CAM++ / HiFT
    也从 `ref/models` 的 Apache 权重导，不经 `tools/export`），所有图的输入输出必须是 fp32（运行时按声明类型绑定缓冲）。

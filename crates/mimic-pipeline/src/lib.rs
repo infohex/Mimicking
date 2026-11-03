@@ -4,6 +4,7 @@
 //!   [`VelocityEstimator`], so the solver can be swapped without touching the model package).
 //! - [`Stages`]: the set of trait objects one conversion needs, plus [`Stages::prepare_prompt`].
 //! - [`Session`]: per-voice streaming state (analysis window, SOLA, gate, RNG, prompt). Owns no model.
+//!   [`Session::roll`] advances that state through a quiet block without any model work.
 //! - [`Runner`]: owns the [`Stages`] and advances any number of [`Session`]s one block at a time.
 //! - [`Converter`]: whole-file conversion built on the same runner/session code path.
 
@@ -248,7 +249,10 @@ pub struct Session {
     gate_delay: std::collections::VecDeque<f32>,
     gate_prev: f32,
     pub last_timing: BlockTiming,
+    /// Blocks converted by [`Runner::push`].
     pub blocks: usize,
+    /// Blocks advanced by [`Session::roll`] (no model work).
+    pub rolled: usize,
 }
 
 impl Session {
@@ -270,6 +274,7 @@ impl Session {
             gate_prev: 1.0,
             last_timing: BlockTiming::default(),
             blocks: 0,
+            rolled: 0,
         }
     }
 
@@ -299,6 +304,56 @@ impl Session {
     pub fn delay_samples(&self) -> usize {
         self.geo.delay_samples()
     }
+
+    /// The rolling 16 kHz analysis window (oldest sample first).
+    pub fn window16(&self) -> &[f32] {
+        &self.window16
+    }
+
+    /// Advance the session through one quiet block **without running the model**: for a stream that is idle
+    /// (a call where nobody speaks) this is what to call instead of [`Runner::push`], and it costs no GPU.
+    /// Takes exactly `block_16k` samples like `push`, returns no audio (the caller plays silence).
+    ///
+    /// Everything `push` would have done to the state is done here, so a later `push` sees the same session
+    /// as if `push` had been called throughout:
+    /// - the analysis window is rolled and holds the real quiet audio (no stale pre-pause speech);
+    /// - the VAD, if any, is fed the block so its hysteresis and context continue, and its real decision
+    ///   enters the alignment queue (rule 7: decisions are aligned to the output they gate), so if the gate
+    ///   opens during the rolled stretch the first converted block is not clipped;
+    /// - the solver noise advances by one block's draw, so the first converted block after the pause is the
+    ///   same noise sample a continuous run would have used;
+    /// - the SOLA tail is cleared and the gate is marked closed, so the next `push` cross-fades in from
+    ///   silence rather than from the tail of the last converted speech.
+    ///
+    /// Only the stitching of the first block after the pause differs from a continuous run (it fades in from
+    /// zero instead of from converted silence). Does not touch `blocks` or `last_timing`; counts in `rolled`.
+    pub fn roll(&mut self, block16: &[f32]) -> Result<()> {
+        let g = self.geo;
+        if block16.len() != g.block_16k {
+            return Err(Error::Shape(format!(
+                "roll expects {} samples, got {}",
+                g.block_16k,
+                block16.len()
+            )));
+        }
+        if let Some(v) = self.vad.as_mut() {
+            let now = v.process(block16);
+            self.gate_delay.push_back(now);
+            self.gate_delay.pop_front();
+        }
+        self.window16.copy_within(g.block_16k.., 0);
+        let n = self.window16.len();
+        self.window16[n - g.block_16k..].copy_from_slice(block16);
+        // the same number of draws `push` makes for one block: n_mels x (prompt frames + t_cond)
+        let draws = self.prompt.mel.shape()[1] * (self.prompt.cond.shape()[1] + g.t_cond);
+        for _ in 0..draws {
+            mimic_dsp::noise::standard_normal(&mut self.rng);
+        }
+        self.sola.reset();
+        self.gate_prev = 0.0;
+        self.rolled += 1;
+        Ok(())
+    }
 }
 
 /// Owns the model stages and advances sessions one block at a time (round-robin by the caller).
@@ -313,7 +368,8 @@ impl Runner {
 
     /// Push exactly `block_16k` new 16 kHz samples into `sess`; returns `block_frame` converted samples at the
     /// acoustic rate. When the session has a VAD and it is closed, the block is still converted (the window must
-    /// keep rolling) but the output is faded to silence.
+    /// keep rolling) but the output is faded to silence. A stream the caller knows to be idle can be advanced
+    /// with [`Session::roll`] instead, which rolls the same state without running the model.
     pub fn push(&mut self, sess: &mut Session, block16: &[f32]) -> Result<Vec<f32>> {
         let g = sess.geo;
         if block16.len() != g.block_16k {

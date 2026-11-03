@@ -2,6 +2,18 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 # Changelog
 
+## Unreleased
+
+- `Session::roll` (2026-11-03): advances a streaming session through one quiet block without running the model
+  (analysis window, gate state and alignment queue, solver noise; SOLA tail cleared, gate marked closed), for an
+  integrator whose own idle detector knows a stream is quiet: an idle stream costs no GPU and the next `push` fades
+  in from silence with the real left context. `Session::window16()` and the `rolled` counter come with it; the
+  integration guide §6 says how to call it. Tests: `crates/mimic-pipeline/tests/roll.rs` (state, no model) and
+  `crates/mimic-model/tests/roll.rs` (push / roll / push against continuous pushes on the real graphs, with and
+  without a gate, short and longer-than-the-window pauses; a rolled session lands as close to the continuous one
+  as a same-seed repeat does). Seen on the way: without a gate, a window of pure silence makes the 2.0 model emit
+  low-level babble (about −27 dBFS); the gate's zeroing is what hides it, one more reason rule 10 keeps the gate on.
+
 ## 2.0 — 2026-11-01
 
 **Mimicking 2.0 official release.** The generator is now our self-trained weights (`Mimicking-v2.0`, graph version 2.0.1), the default set is `models/Mimicking-v2.0-lowlat`, with further
